@@ -1,0 +1,267 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Dynamic Trade & Economy Simulator</title>
+    <link rel="stylesheet" href="styles.css">
+  </head>
+  <body>
+    <svg class="svg-defs" aria-hidden="true" focusable="false">
+      <symbol id="icon-food" viewBox="0 0 24 24">
+        <path d="M5 12c0-4.4 3.3-8 7.4-8 1.7 0 3.4.6 4.7 1.8A6.8 6.8 0 0 1 20 11.3c0 4.9-4.1 8.7-8 8.7-3.8 0-7-3.6-7-8Z"></path>
+        <path d="M12.7 4.2c.6 1.9 2 3.2 4 3.6"></path>
+        <path d="M10.4 3.9c1.4-1.2 3.3-1.8 5.4-1.7"></path>
+      </symbol>
+      <symbol id="icon-textiles" viewBox="0 0 24 24">
+        <path d="M4 7.5 8.8 5l3.2 2 3.2-2L20 7.5l-2.6 4.1-1.6-.8V20H8.2v-9.2l-1.6.8L4 7.5Z"></path>
+        <path d="M9 5c.5 1.2 1.5 1.8 3 1.8S14.5 6.2 15 5"></path>
+      </symbol>
+      <symbol id="icon-oil" viewBox="0 0 24 24">
+        <path d="M12 3s6 6.4 6 11a6 6 0 1 1-12 0c0-4.6 6-11 6-11Z"></path>
+        <path d="M9.8 15.4a2.4 2.4 0 0 0 3.4 2.1"></path>
+      </symbol>
+      <symbol id="icon-electronics" viewBox="0 0 24 24">
+        <rect x="6" y="6" width="12" height="12" rx="2"></rect>
+        <path d="M9 3v3M15 3v3M9 18v3M15 18v3M3 9h3M3 15h3M18 9h3M18 15h3"></path>
+        <path d="M10 10h4v4h-4z"></path>
+      </symbol>
+      <symbol id="icon-medicine" viewBox="0 0 24 24">
+        <path d="M7.3 10.8 13.8 4a3.3 3.3 0 0 1 4.7 4.6L12 15.4"></path>
+        <path d="M4.7 13.4a3.3 3.3 0 0 0 4.6 4.7L12 15.4l-4.7-4.6-2.6 2.6Z"></path>
+        <path d="M14.2 9.1 17 11.9"></path>
+      </symbol>
+      <symbol id="icon-lithium" viewBox="0 0 24 24">
+        <path d="M12 3 4 8v8l8 5 8-5V8l-8-5Z"></path>
+        <path d="M4 8l8 5 8-5M12 13v8"></path>
+        <path d="M8.3 10.7 16 6.1"></path>
+      </symbol>
+      <symbol id="icon-play" viewBox="0 0 24 24">
+        <path d="M8 5v14l11-7-11-7Z"></path>
+      </symbol>
+      <symbol id="icon-pause" viewBox="0 0 24 24">
+        <path d="M7 5h4v14H7zM13 5h4v14h-4z"></path>
+      </symbol>
+      <symbol id="icon-step" viewBox="0 0 24 24">
+        <path d="M5 5v14l8-7-8-7Z"></path>
+        <path d="M15 5h3v14h-3z"></path>
+      </symbol>
+      <symbol id="icon-save" viewBox="0 0 24 24">
+        <path d="M5 4h12l2 2v14H5V4Z"></path>
+        <path d="M8 4v6h8V4M8 20v-6h8v6"></path>
+      </symbol>
+      <symbol id="icon-reset" viewBox="0 0 24 24">
+        <path d="M5 12a7 7 0 1 0 2-5"></path>
+        <path d="M5 4v5h5"></path>
+      </symbol>
+      <symbol id="icon-cargo" viewBox="0 0 24 24">
+        <path d="M3 8h12v8H3z"></path>
+        <path d="M15 11h3l3 3v2h-6z"></path>
+        <circle cx="7" cy="18" r="2"></circle>
+        <circle cx="18" cy="18" r="2"></circle>
+      </symbol>
+      <symbol id="icon-scan" viewBox="0 0 24 24">
+        <path d="M4 8V4h4M16 4h4v4M20 16v4h-4M8 20H4v-4"></path>
+        <circle cx="12" cy="12" r="3"></circle>
+        <path d="M12 2v3M12 19v3M2 12h3M19 12h3"></path>
+      </symbol>
+      <symbol id="icon-up" viewBox="0 0 24 24">
+        <path d="M12 5 5 16h14L12 5Z"></path>
+      </symbol>
+      <symbol id="icon-down" viewBox="0 0 24 24">
+        <path d="M12 19 5 8h14l-7 11Z"></path>
+      </symbol>
+      <symbol id="icon-flat" viewBox="0 0 24 24">
+        <path d="M5 12h14"></path>
+      </symbol>
+      <symbol id="icon-coin" viewBox="0 0 24 24">
+        <circle cx="12" cy="12" r="8"></circle>
+        <path d="M12 7v10M9 9.5c.7-.8 2.2-1.2 3.2-.8 1.2.4 1.8 1.2 1.8 2 0 1.1-.9 1.7-2.1 2-1.2.3-2.4.6-2.4 1.7 0 .8.8 1.5 2.3 1.5 1.1 0 2.1-.3 2.8-1"></path>
+      </symbol>
+      <symbol id="icon-route" viewBox="0 0 24 24">
+        <circle cx="6" cy="6" r="2"></circle>
+        <circle cx="18" cy="18" r="2"></circle>
+        <path d="M6 8v3a3 3 0 0 0 3 3h6a3 3 0 0 1 3 3v1"></path>
+      </symbol>
+    </svg>
+
+    <div class="app-shell">
+      <header class="topbar">
+        <div>
+          <p class="eyebrow">Mercantile Command</p>
+          <h1>Dynamic Trade & Economy Simulator</h1>
+        </div>
+        <div class="status-strip" aria-label="Player status">
+          <span><strong id="dayLabel">Day 1</strong></span>
+          <span>Money <strong id="moneyLabel">$0</strong></span>
+          <span>Net <strong id="netWorthLabel">$0</strong></span>
+          <span>Cargo <strong id="cargoLabel">0/0</strong></span>
+        </div>
+      </header>
+
+      <section class="control-band" aria-label="Game controls">
+        <div class="control-group">
+          <button class="icon-button primary" id="pauseButton" type="button" aria-label="Pause or resume">
+            <svg aria-hidden="true"><use href="#icon-pause"></use></svg>
+            <span>Pause</span>
+          </button>
+          <button class="icon-button" id="tickButton" type="button">
+            <svg aria-hidden="true"><use href="#icon-step"></use></svg>
+            <span>Tick</span>
+          </button>
+          <label class="speed-control" for="speedRange">
+            <span>Speed</span>
+            <input id="speedRange" type="range" min="1" max="4" value="2">
+          </label>
+        </div>
+        <div class="control-group">
+          <button class="icon-button" id="saveButton" type="button">
+            <svg aria-hidden="true"><use href="#icon-save"></use></svg>
+            <span>Save</span>
+          </button>
+          <button class="icon-button danger" id="resetButton" type="button">
+            <svg aria-hidden="true"><use href="#icon-reset"></use></svg>
+            <span>Reset</span>
+          </button>
+        </div>
+      </section>
+
+      <main class="main-grid">
+        <section class="panel map-panel" aria-labelledby="marketTitle">
+          <div class="panel-head">
+            <div>
+              <p class="eyebrow">Route Network</p>
+              <h2 id="marketTitle">Markets</h2>
+            </div>
+            <span class="soft-badge" id="locationBadge">Harbor Gate</span>
+          </div>
+
+          <div class="route-map" id="routeMap" aria-label="Trade route map"></div>
+          <div class="market-list" id="marketList"></div>
+        </section>
+
+        <section class="panel market-panel" aria-labelledby="goodsTitle">
+          <div class="panel-head goods-head">
+            <div>
+              <p class="eyebrow">Spot Market</p>
+              <h2 id="goodsTitle">Current Prices</h2>
+            </div>
+            <div class="trade-qty">
+              <label for="quantityInput">Qty</label>
+              <input id="quantityInput" type="number" min="1" step="1" value="5">
+            </div>
+          </div>
+
+          <div class="table-wrap">
+            <table class="goods-table">
+              <thead>
+                <tr>
+                  <th scope="col">Good</th>
+                  <th scope="col">Buy</th>
+                  <th scope="col">Sell</th>
+                  <th scope="col">Supply</th>
+                  <th scope="col">Demand</th>
+                  <th scope="col">Trend</th>
+                  <th scope="col">Owned</th>
+                  <th scope="col">Trade</th>
+                </tr>
+              </thead>
+              <tbody id="goodsTableBody"></tbody>
+            </table>
+          </div>
+        </section>
+
+        <aside class="side-stack" aria-label="Portfolio and events">
+          <section class="panel">
+            <div class="panel-head">
+              <div>
+                <p class="eyebrow">Portfolio</p>
+                <h2>Inventory</h2>
+              </div>
+              <span class="soft-badge" id="capacityBadge">0 left</span>
+            </div>
+            <div id="inventoryList" class="inventory-list"></div>
+          </section>
+
+          <section class="panel">
+            <div class="panel-head">
+              <div>
+                <p class="eyebrow">World State</p>
+                <h2>Events</h2>
+              </div>
+              <span class="soft-badge" id="eventCountBadge">0 active</span>
+            </div>
+            <div id="eventList" class="event-list"></div>
+          </section>
+        </aside>
+      </main>
+
+      <section class="analysis-grid">
+        <section class="panel chart-panel" aria-labelledby="chartTitle">
+          <div class="panel-head">
+            <div>
+              <p class="eyebrow">Market Memory</p>
+              <h2 id="chartTitle">Price Graph</h2>
+            </div>
+            <span class="soft-badge" id="selectedGoodBadge">Food</span>
+          </div>
+          <canvas id="priceCanvas" height="240" aria-label="Price history chart"></canvas>
+        </section>
+
+        <section class="panel actions-panel" aria-labelledby="actionsTitle">
+          <div class="panel-head">
+            <div>
+              <p class="eyebrow">Tools</p>
+              <h2 id="actionsTitle">Operations</h2>
+            </div>
+            <span class="soft-badge" id="unlockBadge">Next unlock</span>
+          </div>
+          <div class="action-grid">
+            <button class="tool-button" id="upgradeCargoButton" type="button">
+              <svg aria-hidden="true"><use href="#icon-cargo"></use></svg>
+              <span>
+                <strong>Expand Cargo</strong>
+                <small id="cargoUpgradeCost">$0</small>
+              </span>
+            </button>
+            <button class="tool-button" id="promoteButton" type="button">
+              <svg aria-hidden="true"><use href="#icon-up"></use></svg>
+              <span>
+                <strong>Promote Demand</strong>
+                <small id="promoteCost">$0</small>
+              </span>
+            </button>
+            <button class="tool-button" id="supplierButton" type="button">
+              <svg aria-hidden="true"><use href="#icon-down"></use></svg>
+              <span>
+                <strong>Secure Supplier</strong>
+                <small id="supplierCost">$0</small>
+              </span>
+            </button>
+            <button class="tool-button" id="scanButton" type="button">
+              <svg aria-hidden="true"><use href="#icon-scan"></use></svg>
+              <span>
+                <strong>Market Scan</strong>
+                <small id="scanCost">$0</small>
+              </span>
+            </button>
+          </div>
+          <div class="progress-list" id="progressList"></div>
+        </section>
+
+        <section class="panel log-panel" aria-labelledby="logTitle">
+          <div class="panel-head">
+            <div>
+              <p class="eyebrow">Ledger</p>
+              <h2 id="logTitle">Activity</h2>
+            </div>
+            <span class="soft-badge" id="tickLabel">Tick 0</span>
+          </div>
+          <div id="logList" class="log-list" aria-live="polite"></div>
+        </section>
+      </section>
+    </div>
+
+    <script src="app.js"></script>
+  </body>
+</html>

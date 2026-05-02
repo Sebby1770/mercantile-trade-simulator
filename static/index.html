@@ -1,0 +1,550 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MERCANTILE — Trade Terminal</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>
+:root {
+  --bg:         #06080f;
+  --bg-2:       #0b0e18;
+  --panel:      #10141e;
+  --panel-2:    #151a26;
+  --panel-3:    #1c2130;
+  --border:     #242b3d;
+  --border-soft:#181d28;
+  --text:       #d8e0f0;
+  --text-dim:   #8896b0;
+  --muted:      #545f78;
+  --accent:     #5eead4;
+  --accent-2:   #2dd4bf;
+  --up:         #4ade80;
+  --down:       #f87171;
+  --warn:       #fbbf24;
+  --gold:       #fcd34d;
+  --info:       #60a5fa;
+  --purple:     #c084fc;
+  --r1: #4ade80; --r2: #fbbf24; --r3: #60a5fa;
+  --r4: #f97316; --r5: #f87171; --r6: #c084fc;
+  --r7: #34d399; --r8: #fb7185;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'JetBrains Mono', 'SF Mono', Menlo, Consolas, monospace;
+  font-size: 12px;
+  line-height: 1.45;
+  height: 100vh;
+  overflow: hidden;
+  -webkit-font-smoothing: antialiased;
+}
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+/* ── Layout ── */
+.app {
+  display: grid;
+  height: 100vh;
+  grid-template-rows: 52px 1fr 190px;
+  grid-template-columns: 220px 1fr 310px;
+  grid-template-areas:
+    "top top top"
+    "left center right"
+    "chart chart right";
+  gap: 1px;
+  background: var(--border-soft);
+}
+
+/* ── Topbar ── */
+.topbar {
+  grid-area: top;
+  background: var(--panel);
+  display: flex;
+  align-items: center;
+  padding: 0 18px;
+  gap: 24px;
+  border-bottom: 1px solid var(--border);
+}
+.brand { font-weight: 700; letter-spacing: 3px; font-size: 13px; color: var(--accent); white-space: nowrap; }
+.brand sub { font-size: 9px; color: var(--muted); letter-spacing: 1px; display: block; margin-top: 1px; }
+.top-stats { display: flex; gap: 20px; flex: 1; overflow: hidden; }
+.stat { display: flex; flex-direction: column; min-width: 0; }
+.stat-label { font-size: 9px; color: var(--muted); text-transform: uppercase; letter-spacing: 1.5px; }
+.stat-value { font-size: 14px; font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.stat-value.gold { color: var(--gold); }
+.stat-value.accent { color: var(--accent); }
+.stat-value.info { color: var(--info); }
+.goal-bar-wrap { flex: 1; max-width: 160px; align-self: center; }
+.goal-label { font-size: 9px; color: var(--muted); letter-spacing: 1px; margin-bottom: 3px; }
+.goal-bar { height: 4px; background: var(--panel-3); border-radius: 2px; overflow: hidden; }
+.goal-fill { height: 100%; background: linear-gradient(90deg, var(--accent), var(--up)); border-radius: 2px; transition: width 0.6s ease; }
+.top-controls { display: flex; gap: 6px; align-items: center; }
+.btn {
+  background: var(--panel-2); color: var(--text-dim); border: 1px solid var(--border);
+  padding: 5px 12px; font-family: inherit; font-size: 10px; letter-spacing: 1px;
+  text-transform: uppercase; cursor: pointer; border-radius: 3px; transition: all 0.15s;
+}
+.btn:hover { background: var(--panel-3); color: var(--text); }
+.btn.primary { background: var(--accent); color: #050810; border-color: var(--accent); font-weight: 700; }
+.btn.primary:hover { background: var(--accent-2); }
+.speed-group { display: flex; border: 1px solid var(--border); border-radius: 3px; overflow: hidden; }
+.speed-btn { background: var(--panel-2); border: none; color: var(--muted); padding: 5px 9px; cursor: pointer; font-family: inherit; font-size: 10px; transition: all 0.1s; }
+.speed-btn:hover { color: var(--text); }
+.speed-btn.active { background: var(--accent); color: #050810; font-weight: 700; }
+
+/* ── Left Panel ── */
+.left {
+  grid-area: left;
+  background: var(--panel);
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  padding: 12px;
+  gap: 14px;
+}
+.section-head { font-size: 9px; letter-spacing: 2px; color: var(--muted); text-transform: uppercase; padding: 0 2px; margin-bottom: 6px; }
+
+.city-card {
+  background: var(--panel-2); border: 1px solid var(--border-soft);
+  border-radius: 4px; padding: 9px 10px; cursor: pointer; transition: all 0.15s;
+  position: relative;
+}
+.city-card:hover { background: var(--panel-3); border-color: var(--border); }
+.city-card.current { border-color: var(--accent); background: rgba(94,234,212,0.07); }
+.city-card.dest { border-color: var(--info); background: rgba(96,165,250,0.07); }
+.city-dot {
+  position: absolute; top: 9px; right: 10px;
+  width: 8px; height: 8px; border-radius: 50%;
+}
+.city-dot.pulse { animation: pulse 1.5s infinite; }
+@keyframes pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(94,234,212,0.6); }
+  50%       { box-shadow: 0 0 0 5px rgba(94,234,212,0); }
+}
+.city-name { font-weight: 700; font-size: 11.5px; padding-right: 16px; }
+.city-tag { font-size: 9px; color: var(--text-dim); margin-top: 1px; letter-spacing: 0.3px; }
+.city-meta { display: flex; justify-content: space-between; margin-top: 6px; font-size: 9.5px; }
+.city-dist { color: var(--info); }
+
+.rival-row {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 6px 8px; border-radius: 3px; font-size: 10.5px;
+}
+.rival-row.you { background: rgba(94,234,212,0.07); border: 1px solid rgba(94,234,212,0.2); border-radius: 3px; }
+.rival-name { font-weight: 600; }
+.rival-nw { color: var(--gold); font-variant-numeric: tabular-nums; }
+.rival-info { font-size: 9px; color: var(--muted); margin-top: 1px; }
+
+/* ── Center ── */
+.center {
+  grid-area: center;
+  background: var(--panel);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.tab-bar {
+  display: flex; border-bottom: 1px solid var(--border);
+  padding: 0 16px; background: var(--bg-2); flex-shrink: 0;
+}
+.tab {
+  padding: 10px 14px; font-size: 10px; letter-spacing: 1.5px; text-transform: uppercase;
+  color: var(--muted); cursor: pointer; border-bottom: 2px solid transparent;
+  transition: all 0.15s; margin-bottom: -1px;
+}
+.tab:hover { color: var(--text-dim); }
+.tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+.tab-content { flex: 1; overflow: hidden; display: flex; flex-direction: column; }
+
+/* ── Market Tab ── */
+.market-header {
+  padding: 12px 16px 10px;
+  border-bottom: 1px solid var(--border-soft);
+  display: flex; justify-content: space-between; align-items: flex-end;
+  flex-shrink: 0;
+}
+.market-city { font-size: 16px; font-weight: 700; letter-spacing: 1px; }
+.market-tag { font-size: 10px; color: var(--text-dim); margin-top: 2px; }
+.market-status { font-size: 10px; color: var(--text-dim); text-align: right; }
+.market-status.traveling { color: var(--info); }
+
+.table-wrap { flex: 1; overflow-y: auto; }
+table.mt {
+  width: 100%; border-collapse: collapse;
+  font-variant-numeric: tabular-nums;
+}
+.mt th {
+  position: sticky; top: 0; z-index: 2;
+  text-align: left; padding: 7px 8px;
+  font-size: 9px; letter-spacing: 1.5px; color: var(--muted); text-transform: uppercase;
+  background: var(--panel); border-bottom: 1px solid var(--border);
+  font-weight: 500;
+}
+.mt th.r { text-align: right; }
+.mt td { padding: 7px 8px; border-bottom: 1px solid var(--border-soft); vertical-align: middle; }
+.mt tr.mrow { cursor: pointer; transition: background 0.1s; }
+.mt tr.mrow:hover td { background: rgba(255,255,255,0.02); }
+.mt tr.mrow.sel td { background: rgba(94,234,212,0.05); }
+.mt td.r { text-align: right; }
+.good-name-cell .gname { font-weight: 600; font-size: 11.5px; }
+.good-name-cell .gcat { font-size: 9px; color: var(--muted); margin-top: 1px; text-transform: uppercase; letter-spacing: 0.5px; }
+.price-cell { font-weight: 700; font-size: 13px; }
+.price-cell.flash-up { color: var(--up) !important; transition: color 0s; }
+.price-cell.flash-down { color: var(--down) !important; transition: color 0s; }
+.trend-cell { font-size: 10.5px; font-weight: 600; }
+.trend-cell.up { color: var(--up); }
+.trend-cell.down { color: var(--down); }
+.trend-cell.flat { color: var(--muted); }
+.stock-bar-wrap { width: 50px; }
+.stock-bar { height: 3px; background: var(--bg-2); border-radius: 2px; overflow: hidden; }
+.stock-fill { height: 100%; border-radius: 2px; transition: width 0.4s; }
+.stock-fill.high { background: var(--info); }
+.stock-fill.med  { background: var(--warn); }
+.stock-fill.low  { background: var(--down); }
+.tag { display: inline-block; font-size: 9px; padding: 1px 5px; border-radius: 2px; letter-spacing: 0.5px; margin-left: 4px; vertical-align: middle; }
+.tag.cheap   { background: rgba(74,222,128,0.15); color: var(--up); }
+.tag.premium { background: rgba(248,113,113,0.15); color: var(--down); }
+.tag.scarce  { background: rgba(251,191,36,0.15); color: var(--warn); }
+.tag.surplus { background: rgba(96,165,250,0.15); color: var(--info); }
+.held-badge { display: inline-block; background: rgba(94,234,212,0.15); color: var(--accent); font-size: 9.5px; padding: 1px 6px; border-radius: 2px; font-weight: 600; }
+.qty-in {
+  width: 46px; background: var(--bg-2); color: var(--text);
+  border: 1px solid var(--border); padding: 3px 5px;
+  font-family: inherit; font-size: 10.5px; border-radius: 2px; text-align: right;
+}
+.qty-in:focus { outline: none; border-color: var(--accent); }
+.act-btn {
+  background: transparent; border: 1px solid var(--border); color: var(--text-dim);
+  padding: 3px 8px; font-family: inherit; font-size: 9px; letter-spacing: 1px;
+  cursor: pointer; border-radius: 2px; transition: all 0.1s; margin-left: 3px; text-transform: uppercase;
+}
+.act-btn.buy:hover  { border-color: var(--up); color: var(--up); }
+.act-btn.sell:hover { border-color: var(--down); color: var(--down); }
+.act-btn:disabled   { opacity: 0.3; cursor: not-allowed; }
+.spark { width: 64px; height: 20px; vertical-align: middle; }
+
+/* ── Portfolio Tab ── */
+.portfolio-wrap {
+  flex: 1; overflow-y: auto; padding: 14px 16px;
+}
+.portfolio-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 14px; }
+.port-card { background: var(--panel-2); border: 1px solid var(--border-soft); border-radius: 4px; padding: 10px 12px; }
+.port-card-label { font-size: 9px; color: var(--muted); text-transform: uppercase; letter-spacing: 1.5px; margin-bottom: 4px; }
+.port-card-value { font-size: 15px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.port-card-value.up { color: var(--up); }
+.port-card-value.down { color: var(--down); }
+.port-card-value.gold { color: var(--gold); }
+.port-card-value.accent { color: var(--accent); }
+.hold-row { display: flex; justify-content: space-between; align-items: center; padding: 7px 0; border-bottom: 1px solid var(--border-soft); font-size: 11px; }
+.hold-row:last-child { border-bottom: none; }
+.hold-name { font-weight: 600; }
+.hold-detail { font-size: 9.5px; color: var(--text-dim); margin-top: 2px; font-variant-numeric: tabular-nums; }
+.hold-pl { font-weight: 600; font-variant-numeric: tabular-nums; }
+.chart-container { position: relative; height: 160px; margin-top: 12px; }
+
+/* ── Routes Tab ── */
+.routes-wrap { flex: 1; overflow-y: auto; padding: 10px 14px; }
+.route-row {
+  display: flex; align-items: center; gap: 10px;
+  padding: 8px 10px; background: var(--panel-2); border: 1px solid var(--border-soft);
+  border-radius: 4px; margin-bottom: 5px; cursor: pointer; transition: all 0.15s;
+}
+.route-row:hover { border-color: var(--border); background: var(--panel-3); }
+.route-good { font-weight: 700; font-size: 11px; min-width: 80px; }
+.route-arrow { color: var(--accent); font-size: 11px; flex: 1; }
+.route-margin { font-weight: 700; color: var(--up); font-variant-numeric: tabular-nums; min-width: 50px; text-align: right; }
+.route-dist { font-size: 9.5px; color: var(--muted); min-width: 30px; text-align: right; }
+.route-score { font-size: 9px; color: var(--text-dim); min-width: 50px; text-align: right; }
+
+/* ── Upgrades Tab ── */
+.upgrades-wrap { flex: 1; overflow-y: auto; padding: 14px 16px; display: flex; flex-direction: column; gap: 16px; }
+.upgrade-section-title { font-size: 10px; letter-spacing: 2px; color: var(--text-dim); text-transform: uppercase; margin-bottom: 6px; }
+.upgrade-cards { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.upgrade-card {
+  background: var(--panel-2); border: 1px solid var(--border-soft);
+  border-radius: 4px; padding: 10px 12px;
+}
+.upgrade-card.owned { border-color: rgba(94,234,212,0.3); background: rgba(94,234,212,0.05); }
+.upgrade-name { font-weight: 700; font-size: 11px; margin-bottom: 3px; }
+.upgrade-desc { font-size: 9.5px; color: var(--text-dim); line-height: 1.5; margin-bottom: 7px; }
+.upgrade-cost { font-size: 10px; color: var(--gold); font-variant-numeric: tabular-nums; }
+.upgrade-owned { font-size: 10px; color: var(--accent); }
+.ship-level { display: flex; gap: 6px; }
+.ship-lev-box { flex: 1; background: var(--panel-3); border: 1px solid var(--border); border-radius: 3px; padding: 8px; text-align: center; font-size: 10px; }
+.ship-lev-box.active { border-color: var(--accent); background: rgba(94,234,212,0.08); }
+.ship-lev-box.available { border-color: var(--gold); cursor: pointer; }
+.ship-lev-box.available:hover { background: rgba(252,211,77,0.05); }
+
+/* ── Map Tab ── */
+.map-wrap { flex: 1; display: flex; flex-direction: column; padding: 10px 14px; overflow: hidden; }
+.map-canvas-wrap { flex: 1; position: relative; }
+#worldMap { width: 100%; height: 100%; }
+
+/* ── Right Panel ── */
+.right {
+  grid-area: right;
+  background: var(--panel);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border-left: 1px solid var(--border-soft);
+}
+.right-section { padding: 10px 12px; border-bottom: 1px solid var(--border-soft); flex-shrink: 0; }
+.right-section.grow { flex: 1; overflow-y: auto; }
+.inv-row { display: flex; justify-content: space-between; align-items: center; padding: 5px 6px; border-radius: 3px; }
+.inv-row:hover { background: var(--bg-2); }
+.inv-name { font-weight: 600; font-size: 11px; }
+.inv-qty { font-size: 9.5px; color: var(--text-dim); margin-top: 1px; font-variant-numeric: tabular-nums; }
+.inv-pl { font-size: 10px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.inv-pl.up { color: var(--up); }
+.inv-pl.down { color: var(--down); }
+.cargo-bar { height: 3px; background: var(--bg-2); border-radius: 2px; overflow: hidden; margin-top: 6px; }
+.cargo-fill { height: 100%; background: var(--accent); border-radius: 2px; transition: width 0.4s; }
+.cargo-fill.full { background: var(--down); }
+.cargo-meta { display: flex; justify-content: space-between; font-size: 9.5px; color: var(--muted); margin-top: 3px; }
+
+.loan-row { display: flex; justify-content: space-between; align-items: center; margin-top: 6px; }
+.loan-input { width: 80px; background: var(--bg-2); color: var(--text); border: 1px solid var(--border); padding: 3px 6px; font-family: inherit; font-size: 10px; border-radius: 2px; }
+.loan-input:focus { outline: none; border-color: var(--gold); }
+
+.ev-card { background: var(--panel-2); border-left: 2px solid var(--warn); padding: 7px 9px; border-radius: 0 3px 3px 0; margin-bottom: 5px; }
+.ev-card.boom   { border-left-color: var(--up); }
+.ev-card.crisis { border-left-color: var(--down); }
+.ev-title { font-weight: 700; font-size: 10.5px; }
+.ev-desc  { font-size: 9.5px; color: var(--text-dim); margin-top: 2px; line-height: 1.4; }
+.ev-goods { font-size: 9px; color: var(--accent); margin-top: 3px; letter-spacing: 0.5px; }
+.ev-time  { font-size: 9px; color: var(--muted); margin-top: 2px; letter-spacing: 1px; }
+.empty-msg { font-size: 10.5px; color: var(--muted); padding: 8px 4px; font-style: italic; }
+
+.log-entry { font-size: 10px; padding: 3px 6px; border-bottom: 1px solid rgba(255,255,255,0.03); line-height: 1.5; }
+.log-entry .lday { color: var(--muted); margin-right: 5px; }
+.log-entry.buy    { color: var(--up); }
+.log-entry.sell   { color: var(--info); }
+.log-entry.event  { color: var(--warn); }
+.log-entry.travel { color: var(--purple); }
+.log-entry.system { color: var(--text-dim); }
+
+/* ── Chart Panel ── */
+.chart-panel {
+  grid-area: chart;
+  background: var(--panel);
+  padding: 10px 16px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border-top: 1px solid var(--border-soft);
+}
+.chart-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; flex-shrink: 0; }
+.chart-title { font-size: 9px; letter-spacing: 2px; color: var(--muted); text-transform: uppercase; }
+.chart-good  { font-weight: 700; color: var(--accent); margin-left: 8px; letter-spacing: 1px; font-size: 11px; }
+.legend { display: flex; gap: 12px; flex-wrap: wrap; }
+.leg-item { display: flex; align-items: center; gap: 4px; font-size: 9.5px; color: var(--text-dim); }
+.leg-dot { width: 8px; height: 3px; border-radius: 1px; }
+.chart-canvas-wrap { flex: 1; min-height: 0; position: relative; }
+#priceChart { width: 100% !important; height: 100% !important; }
+
+/* ── Toasts ── */
+.toasts { position: fixed; top: 62px; right: 16px; z-index: 100; display: flex; flex-direction: column; gap: 6px; pointer-events: none; }
+.toast {
+  background: var(--panel-2); border: 1px solid var(--border); border-left: 3px solid var(--info);
+  padding: 9px 13px; border-radius: 4px; font-size: 11px; min-width: 220px; max-width: 300px;
+  animation: toastIn 0.25s ease, toastOut 0.4s ease 3.6s forwards;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.5);
+}
+.toast.success { border-left-color: var(--up); }
+.toast.error   { border-left-color: var(--down); }
+.toast.warn    { border-left-color: var(--warn); }
+.toast .t-head { font-weight: 700; margin-bottom: 2px; }
+.toast .t-body { color: var(--text-dim); font-size: 9.5px; }
+@keyframes toastIn  { from { transform: translateX(16px); opacity: 0; } to { transform: none; opacity: 1; } }
+@keyframes toastOut { to { opacity: 0; transform: translateX(16px); } }
+
+/* ── Modal ── */
+.modal-bg { position: fixed; inset: 0; background: rgba(0,0,0,0.8); display: none; align-items: center; justify-content: center; z-index: 200; }
+.modal-bg.show { display: flex; }
+.modal { background: var(--panel); border: 1px solid var(--border); padding: 32px 36px; border-radius: 6px; max-width: 440px; text-align: center; }
+.modal h2 { font-size: 20px; letter-spacing: 2px; color: var(--accent); margin-bottom: 10px; }
+.modal h2.bad { color: var(--down); }
+.modal p { color: var(--text-dim); margin-bottom: 16px; line-height: 1.6; }
+.modal-stats { background: var(--bg-2); border-radius: 4px; padding: 12px 16px; margin: 12px 0; text-align: left; }
+.modal-stats div { padding: 3px 0; font-size: 11.5px; }
+.modal-stats span { color: var(--gold); font-weight: 700; }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <!-- TOPBAR -->
+  <div class="topbar">
+    <div class="brand">MERCANTILE<sub>TRADE TERMINAL</sub></div>
+    <div class="top-stats">
+      <div class="stat"><div class="stat-label">Cash</div><div class="stat-value gold" id="s-cash">$2,000</div></div>
+      <div class="stat"><div class="stat-label">Net Worth</div><div class="stat-value accent" id="s-nw">$2,000</div></div>
+      <div class="stat"><div class="stat-label">P&amp;L</div><div class="stat-value" id="s-pl">—</div></div>
+      <div class="stat"><div class="stat-label">Day</div><div class="stat-value info" id="s-day">1</div></div>
+      <div class="stat"><div class="stat-label">Location</div><div class="stat-value" id="s-loc">—</div></div>
+      <div class="stat"><div class="stat-label">Rank</div><div class="stat-value" id="s-rank">#—</div></div>
+      <div class="goal-bar-wrap">
+        <div class="goal-label">GOAL: <span id="s-goal-pct">0%</span></div>
+        <div class="goal-bar"><div class="goal-fill" id="s-goal-fill" style="width:0%"></div></div>
+      </div>
+    </div>
+    <div class="top-controls">
+      <div class="speed-group" id="speed-group">
+        <button class="speed-btn" data-s="0">&#9646;&#9646;</button>
+        <button class="speed-btn active" data-s="1">1x</button>
+        <button class="speed-btn" data-s="2">2x</button>
+        <button class="speed-btn" data-s="4">4x</button>
+      </div>
+      <button class="btn" id="btn-loan">Loan</button>
+      <button class="btn primary" id="btn-reset">New Game</button>
+    </div>
+  </div>
+
+  <!-- LEFT -->
+  <div class="left">
+    <div>
+      <div class="section-head">Markets</div>
+      <div id="city-list"></div>
+    </div>
+    <div>
+      <div class="section-head">Leaderboard</div>
+      <div id="rival-list"></div>
+    </div>
+  </div>
+
+  <!-- CENTER -->
+  <div class="center">
+    <div class="tab-bar">
+      <div class="tab active" data-tab="market">Market</div>
+      <div class="tab" data-tab="routes">Best Routes</div>
+      <div class="tab" data-tab="portfolio">Portfolio</div>
+      <div class="tab" data-tab="map">World Map</div>
+      <div class="tab" data-tab="upgrades">Upgrades</div>
+    </div>
+
+    <!-- MARKET TAB -->
+    <div class="tab-content" id="tab-market">
+      <div class="market-header">
+        <div><div class="market-city" id="mkt-city">—</div><div class="market-tag" id="mkt-tag">—</div></div>
+        <div class="market-status" id="mkt-status">Connecting...</div>
+      </div>
+      <div class="table-wrap">
+        <table class="mt">
+          <thead>
+            <tr>
+              <th>Good</th>
+              <th class="r">Price</th>
+              <th class="r">vs. Avg</th>
+              <th>Trend</th>
+              <th>Stock</th>
+              <th>Chart</th>
+              <th class="r">Held</th>
+              <th class="r">Action</th>
+            </tr>
+          </thead>
+          <tbody id="mkt-body"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- ROUTES TAB -->
+    <div class="tab-content" id="tab-routes" style="display:none">
+      <div class="routes-wrap">
+        <div style="padding:0 2px 10px; font-size:10px; color:var(--text-dim); line-height:1.5;">
+          Top arbitrage opportunities — buy cheap, sell dear. Score = margin÷distance.
+        </div>
+        <div id="routes-list"></div>
+      </div>
+    </div>
+
+    <!-- PORTFOLIO TAB -->
+    <div class="tab-content" id="tab-portfolio" style="display:none">
+      <div class="portfolio-wrap">
+        <div class="portfolio-grid" id="port-grid"></div>
+        <div class="section-head" style="margin-bottom:8px;">Holdings</div>
+        <div id="port-holdings"></div>
+        <div style="margin-top:16px;">
+          <div class="section-head" style="margin-bottom:6px;">P&amp;L by Good (all-time)</div>
+          <div class="chart-container"><canvas id="plChart"></canvas></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- MAP TAB -->
+    <div class="tab-content" id="tab-map" style="display:none">
+      <div class="map-wrap">
+        <div style="font-size:9.5px; color:var(--text-dim); margin-bottom:8px;">Click a city to travel there.</div>
+        <div class="map-canvas-wrap">
+          <canvas id="worldMap"></canvas>
+        </div>
+      </div>
+    </div>
+
+    <!-- UPGRADES TAB -->
+    <div class="tab-content" id="tab-upgrades" style="display:none">
+      <div class="upgrades-wrap">
+        <div>
+          <div class="upgrade-section-title">Ship</div>
+          <div class="ship-level" id="ship-cargo"></div>
+          <div style="margin-top:8px;" class="ship-level" id="ship-speed"></div>
+        </div>
+        <div>
+          <div class="upgrade-section-title">Buildings — <span style="color:var(--text-dim);font-size:9px;">Built in your current city</span></div>
+          <div class="upgrade-cards" id="building-cards"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- RIGHT -->
+  <div class="right">
+    <div class="right-section">
+      <div class="section-head">Cargo Hold</div>
+      <div id="inv-list"><div class="empty-msg">Empty hold</div></div>
+      <div class="cargo-bar"><div class="cargo-fill" id="cargo-fill"></div></div>
+      <div class="cargo-meta"><span id="cargo-text">0/20</span><span id="cargo-val">$0</span></div>
+    </div>
+    <div class="right-section" style="padding-bottom:8px;">
+      <div class="section-head">Finance</div>
+      <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--text-dim);">
+        <span>Loan: <span id="loan-amount" style="color:var(--warn);">$0</span></span>
+        <span id="loan-interest" style="font-size:9px;"></span>
+      </div>
+    </div>
+    <div class="right-section" style="overflow-y:auto;max-height:160px;">
+      <div class="section-head">Active Events</div>
+      <div id="ev-list"><div class="empty-msg">No active events</div></div>
+    </div>
+    <div class="right-section grow">
+      <div class="section-head">Activity Log</div>
+      <div id="log-list"></div>
+    </div>
+  </div>
+
+  <!-- CHART -->
+  <div class="chart-panel">
+    <div class="chart-head">
+      <div><span class="chart-title">PRICE HISTORY</span><span class="chart-good" id="chart-good">— select a good —</span></div>
+      <div class="legend" id="chart-legend"></div>
+    </div>
+    <div class="chart-canvas-wrap">
+      <canvas id="priceChart"></canvas>
+    </div>
+  </div>
+
+</div>
+
+<div class="toasts" id="toasts"></div>
+
+<div class="modal-bg" id="modal-bg">
+  <div class="modal" id="modal-body"></div>
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>
