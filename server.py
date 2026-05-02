@@ -5,6 +5,8 @@ import time
 import uuid
 from contextlib import asynccontextmanager
 
+from pathlib import Path
+
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.staticfiles import StaticFiles
 
@@ -267,4 +269,5 @@ def _reset(p: PlayerState) -> dict:
     return _ok('Game reset.')
 
 
-app.mount('/', StaticFiles(directory='.', html=True), name='static')
+STATIC_DIR = Path(__file__).parent / 'static'
+app.mount('/', StaticFiles(directory=STATIC_DIR, html=True), name='static')
