@@ -661,6 +661,7 @@
 
   function getRouteOpportunities(state, limit) {
     const opportunities = [];
+    const cargoLeft = Math.max(0, state.player.capacity - getInventoryUsed(state));
     GOODS.forEach((good) => {
       if (!state.unlockedGoods[good.id]) {
         return;
@@ -677,6 +678,27 @@
           const sell = getTradePrice(state, sellMarket.id, good.id, "sell");
           const freight = estimateRouteCost(buyMarket.id, sellMarket.id);
           const margin = roundMoney(sell - buy - freight / 10);
+          const accessCost = buyMarket.id === state.player.location ? 0 : estimateRouteCost(state.player.location, buyMarket.id);
+          const cashAfterAccess = Math.max(0, state.player.money - accessCost);
+          const marketAvailable = Math.max(0, Math.floor(state.markets[buyMarket.id].supply[good.id] - 12));
+          const affordable = Math.floor(cashAfterAccess / Math.max(0.01, buy));
+          const maxQty = Math.max(0, Math.floor(Math.min(cargoLeft, marketAvailable, affordable)));
+          const eventNames = getRouteEventNames(state, buyMarket.id, sellMarket.id, good.id);
+          const eventExposure = eventNames.length;
+          const roi = buy > 0 ? margin / buy : 0;
+          const startsHere = buyMarket.id === state.player.location;
+          const risk = Math.round(clamp(
+            18 + good.volatility * 135 + freight * 0.14 + eventExposure * 10 + (startsHere ? 0 : 8) - roi * 55,
+            4,
+            98
+          ));
+          const confidence = Math.round(clamp(
+            100 - risk + Math.min(28, roi * 115) + (startsHere ? 6 : 0) + (maxQty > 0 ? 4 : -12),
+            1,
+            99
+          ));
+          const projectedProfit = roundMoney(maxQty * margin - accessCost);
+          const score = Math.round(clamp(confidence + Math.max(0, projectedProfit) / 160 + Math.max(0, roi) * 45, 1, 99));
           opportunities.push({
             good,
             buyMarket,
@@ -684,21 +706,68 @@
             buy,
             sell,
             freight,
+            accessCost,
             margin,
-            roi: buy > 0 ? margin / buy : 0,
-            startsHere: buyMarket.id === state.player.location
+            roi,
+            startsHere,
+            maxQty,
+            projectedProfit,
+            confidence,
+            risk,
+            riskLabel: getRouteRiskLabel(risk),
+            score,
+            eventNames,
+            thesis: getRouteThesis(good, eventExposure, startsHere, maxQty)
           });
         });
       });
     });
 
     opportunities.sort((a, b) => {
-      if (b.margin !== a.margin) {
-        return b.margin - a.margin;
+      if (b.score !== a.score) {
+        return b.score - a.score;
       }
-      return Number(b.startsHere) - Number(a.startsHere);
+      return b.projectedProfit - a.projectedProfit;
     });
     return opportunities.slice(0, limit || 4);
+  }
+
+  function getRouteEventNames(state, buyMarketId, sellMarketId, goodId) {
+    const names = [];
+    state.events.forEach((event) => {
+      const applies = event.effects.some((effect) => {
+        const marketMatches = effect.marketId === "all" || effect.marketId === buyMarketId || effect.marketId === sellMarketId;
+        const goodMatches = effect.goodId === "all" || effect.goodId === goodId;
+        return marketMatches && goodMatches;
+      });
+      if (applies) {
+        names.push(event.name);
+      }
+    });
+    return names;
+  }
+
+  function getRouteRiskLabel(risk) {
+    if (risk < 36) {
+      return "Low risk";
+    }
+    if (risk < 66) {
+      return "Medium risk";
+    }
+    return "High risk";
+  }
+
+  function getRouteThesis(good, eventExposure, startsHere, maxQty) {
+    if (maxQty <= 0) {
+      return `The ${good.name} spread exists, but cash, cargo, or local stock limits the move.`;
+    }
+    if (eventExposure > 0) {
+      return `${good.name} is being distorted by active events; keep the position sized and watch the next tick.`;
+    }
+    if (startsHere) {
+      return `${good.name} can be sourced from your current market, reducing access cost and execution drag.`;
+    }
+    return `${good.name} has a stronger route elsewhere, so reposition only if the projected run pays for access.`;
   }
 
   function estimateRouteCost(fromId, toId) {
@@ -1060,22 +1129,42 @@
     const routes = getRouteOpportunities(state, 4).filter((route) => route.margin > 0);
     if (!routes.length) {
       elements.bestRouteLabel.textContent = "No clean spread";
+      elements.routeThesis.innerHTML = "";
       elements.routeIntelList.innerHTML = `<p class="empty-state compact">No positive route after freight.</p>`;
       return;
     }
 
     const best = routes[0];
-    elements.bestRouteLabel.textContent = `${best.good.name} ${formatMoney(best.margin)}/unit`;
+    const projected = best.projectedProfit > 0 ? formatMoney(best.projectedProfit) : "Access drag";
+    const runLabel = best.projectedProfit > 0
+      ? `${best.maxQty} unit run`
+      : best.maxQty > 0
+        ? "reposition cost"
+        : "no executable size";
+    elements.bestRouteLabel.textContent = `${best.good.name} score ${best.score}`;
+    elements.routeThesis.innerHTML = `
+      <div>
+        <span class="thesis-kicker">Trade thesis</span>
+        <strong>${best.buyMarket.name} -> ${best.sellMarket.name}</strong>
+        <p>${best.thesis}</p>
+      </div>
+      <div class="thesis-metrics">
+        <span><strong>${best.confidence}%</strong><small>Confidence</small></span>
+        <span><strong>${best.risk}</strong><small>${best.riskLabel}</small></span>
+        <span><strong>${projected}</strong><small>${runLabel}</small></span>
+      </div>
+    `;
     elements.routeIntelList.innerHTML = routes.map((route, index) => `
       <div class="route-intel-item ${route.startsHere ? "starts-here" : ""}">
-        <span class="route-rank">${index + 1}</span>
+        <span class="route-rank">${route.score}</span>
         <span>
           <strong>${route.good.name}</strong>
           <small>${route.buyMarket.name} -> ${route.sellMarket.name}${route.startsHere ? " | here" : ""}</small>
+          <small>${route.eventNames.length ? `Event watch: ${route.eventNames.join(", ")}` : route.riskLabel}</small>
         </span>
         <span class="route-return">
           <strong>${formatMoney(route.margin)}</strong>
-          <small>${Math.round(route.roi * 100)}% ROI</small>
+          <small>${route.maxQty}u | ${Math.round(route.roi * 100)}% ROI</small>
         </span>
       </div>
     `).join("");
@@ -1275,6 +1364,7 @@
       "supplierCost",
       "scanCost",
       "bestRouteLabel",
+      "routeThesis",
       "routeIntelList",
       "progressList",
       "unlockBadge",

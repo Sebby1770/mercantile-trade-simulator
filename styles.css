@@ -702,6 +702,70 @@ h2 {
   padding: 10px;
 }
 
+.route-thesis {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(170px, 0.74fr);
+  gap: 12px;
+  padding: 12px;
+  border-bottom: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.62);
+}
+
+.thesis-kicker {
+  display: block;
+  color: var(--muted);
+  font-size: 0.7rem;
+  font-weight: 850;
+  text-transform: uppercase;
+}
+
+.route-thesis strong {
+  display: block;
+  margin-top: 3px;
+  font-size: 0.95rem;
+}
+
+.route-thesis p {
+  margin: 5px 0 0;
+  color: var(--muted);
+  font-size: 0.78rem;
+  line-height: 1.4;
+}
+
+.thesis-metrics {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.thesis-metrics span {
+  display: grid;
+  align-content: center;
+  min-height: 54px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: #fff;
+  padding: 7px;
+}
+
+.thesis-metrics strong,
+.thesis-metrics small {
+  display: block;
+  min-width: 0;
+}
+
+.thesis-metrics strong {
+  color: var(--teal-dark);
+  font-size: 0.83rem;
+  overflow-wrap: anywhere;
+}
+
+.thesis-metrics small {
+  margin-top: 2px;
+  color: var(--muted);
+  font-size: 0.66rem;
+}
+
 .route-intel-item {
   min-height: 52px;
   padding: 8px 9px;
@@ -723,7 +787,7 @@ h2 {
   border-radius: 8px;
   color: var(--teal-dark);
   background: #e4f3ee;
-  font-size: 0.78rem;
+  font-size: 0.72rem;
   font-weight: 850;
   flex: 0 0 auto;
 }
@@ -854,6 +918,11 @@ h2 {
 
   .side-stack,
   .action-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .route-thesis,
+  .thesis-metrics {
     grid-template-columns: 1fr;
   }
 
