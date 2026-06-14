@@ -645,7 +645,22 @@
     }
     state.player.money = roundMoney(state.player.money - cost);
 
-    let best = null;
+    const best = getRouteOpportunities(state, 1)[0];
+
+    if (best && best.margin > 0) {
+      addLog(
+        state,
+        `Scan: ${best.good.name} looks strongest from ${best.buyMarket.name} at ${formatMoney(best.buy)} to ${best.sellMarket.name} at ${formatMoney(best.sell)} for about ${formatMoney(best.margin)} per unit.`,
+        "good"
+      );
+    } else {
+      addLog(state, "Scan: no clear arbitrage after spreads and freight.", "warn");
+    }
+    return true;
+  }
+
+  function getRouteOpportunities(state, limit) {
+    const opportunities = [];
     GOODS.forEach((good) => {
       if (!state.unlockedGoods[good.id]) {
         return;
@@ -660,25 +675,30 @@
           }
           const buy = getTradePrice(state, buyMarket.id, good.id, "buy");
           const sell = getTradePrice(state, sellMarket.id, good.id, "sell");
-          const route = estimateRouteCost(buyMarket.id, sellMarket.id);
-          const margin = sell - buy - route / 10;
-          if (!best || margin > best.margin) {
-            best = { good, buyMarket, sellMarket, buy, sell, margin };
-          }
+          const freight = estimateRouteCost(buyMarket.id, sellMarket.id);
+          const margin = roundMoney(sell - buy - freight / 10);
+          opportunities.push({
+            good,
+            buyMarket,
+            sellMarket,
+            buy,
+            sell,
+            freight,
+            margin,
+            roi: buy > 0 ? margin / buy : 0,
+            startsHere: buyMarket.id === state.player.location
+          });
         });
       });
     });
 
-    if (best && best.margin > 0) {
-      addLog(
-        state,
-        `Scan: ${best.good.name} looks strongest from ${best.buyMarket.name} at ${formatMoney(best.buy)} to ${best.sellMarket.name} at ${formatMoney(best.sell)}.`,
-        "good"
-      );
-    } else {
-      addLog(state, "Scan: no clear arbitrage after spreads and freight.", "warn");
-    }
-    return true;
+    opportunities.sort((a, b) => {
+      if (b.margin !== a.margin) {
+        return b.margin - a.margin;
+      }
+      return Number(b.startsHere) - Number(a.startsHere);
+    });
+    return opportunities.slice(0, limit || 4);
   }
 
   function estimateRouteCost(fromId, toId) {
@@ -816,6 +836,7 @@
     renderProgress(state, elements.progressList);
     renderLog(state, elements.logList);
     renderOperations(state, elements);
+    renderRouteIntel(state, elements);
     renderChart(state, elements.priceCanvas);
   }
 
@@ -1035,6 +1056,31 @@
     elements.scanButton.disabled = state.player.money < scanCost;
   }
 
+  function renderRouteIntel(state, elements) {
+    const routes = getRouteOpportunities(state, 4).filter((route) => route.margin > 0);
+    if (!routes.length) {
+      elements.bestRouteLabel.textContent = "No clean spread";
+      elements.routeIntelList.innerHTML = `<p class="empty-state compact">No positive route after freight.</p>`;
+      return;
+    }
+
+    const best = routes[0];
+    elements.bestRouteLabel.textContent = `${best.good.name} ${formatMoney(best.margin)}/unit`;
+    elements.routeIntelList.innerHTML = routes.map((route, index) => `
+      <div class="route-intel-item ${route.startsHere ? "starts-here" : ""}">
+        <span class="route-rank">${index + 1}</span>
+        <span>
+          <strong>${route.good.name}</strong>
+          <small>${route.buyMarket.name} -> ${route.sellMarket.name}${route.startsHere ? " | here" : ""}</small>
+        </span>
+        <span class="route-return">
+          <strong>${formatMoney(route.margin)}</strong>
+          <small>${Math.round(route.roi * 100)}% ROI</small>
+        </span>
+      </div>
+    `).join("");
+  }
+
   function renderChart(state, canvas) {
     if (!canvas || !canvas.getContext) {
       return;
@@ -1228,6 +1274,8 @@
       "promoteCost",
       "supplierCost",
       "scanCost",
+      "bestRouteLabel",
+      "routeIntelList",
       "progressList",
       "unlockBadge",
       "logList",
@@ -1284,6 +1332,7 @@
     promoteDemand,
     secureSupplier,
     scanMarket,
+    getRouteOpportunities,
     getNetWorth,
     getInventoryUsed,
     getTradePrice,

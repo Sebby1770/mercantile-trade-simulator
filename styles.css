@@ -606,6 +606,12 @@ h2 {
   font-size: 0.9rem;
 }
 
+.empty-state.compact {
+  padding: 6px 4px;
+  margin: 0;
+  font-size: 0.82rem;
+}
+
 .chart-panel canvas {
   display: block;
   width: 100%;
@@ -653,6 +659,97 @@ h2 {
   margin-top: 3px;
   color: var(--muted);
   font-size: 0.76rem;
+}
+
+.route-intel {
+  margin: 12px 16px 0;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: linear-gradient(135deg, #fbfcf9, #eff7f4);
+  overflow: hidden;
+}
+
+.route-intel-head,
+.route-intel-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.route-intel-head {
+  min-height: 46px;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--line);
+}
+
+.route-intel-head span {
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.route-intel-head strong {
+  color: var(--teal-dark);
+  font-size: 0.84rem;
+  text-align: right;
+}
+
+.route-intel-list {
+  display: grid;
+  gap: 7px;
+  padding: 10px;
+}
+
+.route-intel-item {
+  min-height: 52px;
+  padding: 8px 9px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: #fff;
+}
+
+.route-intel-item.starts-here {
+  border-color: #badbd2;
+  background: #f1faf6;
+}
+
+.route-rank {
+  display: inline-grid;
+  place-items: center;
+  width: 26px;
+  aspect-ratio: 1;
+  border-radius: 8px;
+  color: var(--teal-dark);
+  background: #e4f3ee;
+  font-size: 0.78rem;
+  font-weight: 850;
+  flex: 0 0 auto;
+}
+
+.route-intel-item strong,
+.route-intel-item small {
+  display: block;
+}
+
+.route-intel-item strong {
+  font-size: 0.84rem;
+}
+
+.route-intel-item small {
+  margin-top: 2px;
+  color: var(--muted);
+  font-size: 0.72rem;
+}
+
+.route-return {
+  text-align: right;
+  flex: 0 0 auto;
+}
+
+.route-return strong {
+  color: var(--rust);
 }
 
 .progress-row {

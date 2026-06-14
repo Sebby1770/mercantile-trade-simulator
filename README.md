@@ -17,4 +17,5 @@ You can also run `./start.sh` and open `http://localhost:8000` if you prefer a l
 - Player money, cargo capacity, inventory, buy/sell actions, route travel, and upgrades.
 - NPC pressure that buys underpriced goods and sells overpriced goods.
 - Progression through higher net worth, unlocking goods and markets.
+- Route intelligence panel that ranks profitable arbitrage paths after freight costs.
 - Local save/reset, activity ledger, event notifications, and price history charts.
