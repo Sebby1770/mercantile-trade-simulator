@@ -770,6 +770,87 @@
     return `${good.name} has a stronger route elsewhere, so reposition only if the projected run pays for access.`;
   }
 
+  function getMarketRegime(state) {
+    const unlockedMarkets = MARKETS.filter((market) => state.unlockedMarkets[market.id]);
+    const unlockedGoods = GOODS.filter((good) => state.unlockedGoods[good.id]);
+    const dispersions = [];
+    const trendMoves = [];
+    const liquidityScores = [];
+
+    unlockedGoods.forEach((good) => {
+      const prices = unlockedMarkets.map((market) => state.markets[market.id].price[good.id]);
+      const average = prices.reduce((total, price) => total + price, 0) / Math.max(1, prices.length);
+      if (prices.length > 1 && average > 0) {
+        dispersions.push(((Math.max(...prices) - Math.min(...prices)) / average) * 100);
+      }
+
+      unlockedMarkets.forEach((market) => {
+        const marketState = state.markets[market.id];
+        const history = marketState.history[good.id];
+        const latest = history[history.length - 1] || marketState.price[good.id];
+        const previous = history[history.length - 3] || latest;
+        trendMoves.push(Math.abs(((latest - previous) / Math.max(0.01, previous)) * 100));
+
+        const supply = marketState.supply[good.id];
+        const demand = marketState.demand[good.id];
+        liquidityScores.push(clamp((supply / Math.max(1, demand)) * 50, 0, 100));
+      });
+    });
+
+    const dispersion = averageList(dispersions);
+    const volatility = clamp(averageList(trendMoves) * 18, 0, 100);
+    const liquidity = averageList(liquidityScores);
+    const eventPressure = clamp(state.events.length * 27 + state.events.reduce((total, event) => total + event.effects.length * 4, 0), 0, 100);
+    const bestRoute = getRouteOpportunities(state, 1)[0];
+    const routeQuality = bestRoute ? clamp(bestRoute.score, 0, 100) : 0;
+
+    let name = "Selective Trade";
+    let posture = "patient";
+    let doctrine = "Let scans lead, keep cargo flexible, and avoid forcing trades while signals disagree.";
+
+    if (eventPressure >= 58 && volatility >= 42) {
+      name = "Shock Cycle";
+      posture = "defensive";
+      doctrine = "Shorten routes, favor staple liquidity, and wait for event pressure to become mispriced rather than chasing every spike.";
+    } else if (dispersion >= 38 && routeQuality >= 72) {
+      name = "Arbitrage Bloom";
+      posture = "aggressive";
+      doctrine = "Deploy cargo into the highest-confidence route, then rescan after each tick because crowded spreads close quickly.";
+    } else if (liquidity >= 64 && volatility <= 28) {
+      name = "Stable Carry";
+      posture = "carry";
+      doctrine = "Compound safer margins with bigger loads, using supplier contracts to keep core routes full.";
+    } else if (volatility >= 48) {
+      name = "Volatile Rotation";
+      posture = "tactical";
+      doctrine = "Trade smaller batches, privilege current-market starts, and treat every trend as temporary until confirmed.";
+    } else if (routeQuality < 38) {
+      name = "Thin Edge";
+      posture = "patient";
+      doctrine = "Cash is a position: improve supply or demand locally before spending on weak routes.";
+    }
+
+    return {
+      name,
+      posture,
+      doctrine,
+      indicators: [
+        { label: "Dispersion", value: Math.round(dispersion), tone: dispersion >= 38 ? "hot" : "steady" },
+        { label: "Volatility", value: Math.round(volatility), tone: volatility >= 48 ? "hot" : "steady" },
+        { label: "Liquidity", value: Math.round(liquidity), tone: liquidity >= 64 ? "good" : "watch" },
+        { label: "Event pressure", value: Math.round(eventPressure), tone: eventPressure >= 58 ? "hot" : "steady" },
+        { label: "Route quality", value: Math.round(routeQuality), tone: routeQuality >= 72 ? "good" : "watch" }
+      ]
+    };
+  }
+
+  function averageList(values) {
+    if (!values.length) {
+      return 0;
+    }
+    return values.reduce((total, value) => total + value, 0) / values.length;
+  }
+
   function estimateRouteCost(fromId, toId) {
     const from = getMarket(fromId);
     const to = getMarket(toId);
@@ -780,6 +861,16 @@
 
   function formatMoney(value) {
     return `$${Math.round(value).toLocaleString("en-US")}`;
+  }
+
+  function formatCompactMoney(value) {
+    const sign = value < 0 ? "-" : "";
+    const absolute = Math.abs(value);
+    if (absolute >= 1000) {
+      const compact = absolute >= 10000 ? Math.round(absolute / 1000) : (absolute / 1000).toFixed(1);
+      return `${sign}$${compact}k`;
+    }
+    return formatMoney(value);
   }
 
   function formatDecimal(value, places) {
@@ -906,6 +997,7 @@
     renderLog(state, elements.logList);
     renderOperations(state, elements);
     renderRouteIntel(state, elements);
+    renderMacroRegime(state, elements);
     renderChart(state, elements.priceCanvas);
   }
 
@@ -1135,7 +1227,7 @@
     }
 
     const best = routes[0];
-    const projected = best.projectedProfit > 0 ? formatMoney(best.projectedProfit) : "Access drag";
+    const projected = best.projectedProfit > 0 ? formatCompactMoney(best.projectedProfit) : "Access drag";
     const runLabel = best.projectedProfit > 0
       ? `${best.maxQty} unit run`
       : best.maxQty > 0
@@ -1167,6 +1259,19 @@
           <small>${route.maxQty}u | ${Math.round(route.roi * 100)}% ROI</small>
         </span>
       </div>
+    `).join("");
+  }
+
+  function renderMacroRegime(state, elements) {
+    const regime = getMarketRegime(state);
+    elements.macroRegimeLabel.textContent = `${regime.name} | ${regime.posture}`;
+    elements.macroRegimeDoctrine.textContent = regime.doctrine;
+    elements.regimeIndicators.innerHTML = regime.indicators.map((indicator) => `
+      <span class="regime-indicator ${indicator.tone}" style="--value:${indicator.value}%">
+        <strong>${indicator.value}</strong>
+        <small>${indicator.label}</small>
+        <span><span></span></span>
+      </span>
     `).join("");
   }
 
@@ -1366,6 +1471,9 @@
       "bestRouteLabel",
       "routeThesis",
       "routeIntelList",
+      "macroRegimeLabel",
+      "macroRegimeDoctrine",
+      "regimeIndicators",
       "progressList",
       "unlockBadge",
       "logList",
@@ -1423,6 +1531,7 @@
     secureSupplier,
     scanMarket,
     getRouteOpportunities,
+    getMarketRegime,
     getNetWorth,
     getInventoryUsed,
     getTradePrice,

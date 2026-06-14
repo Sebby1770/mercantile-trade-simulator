@@ -19,4 +19,5 @@ You can also run `./start.sh` and open `http://localhost:8000` if you prefer a l
 - Progression through higher net worth, unlocking goods and markets.
 - Route intelligence panel that ranks profitable arbitrage paths after freight costs.
 - Risk-adjusted trade thesis scoring with confidence, event exposure, cargo fit, and projected run profit.
+- Macro regime model that classifies the economy by dispersion, volatility, liquidity, event pressure, and route quality.
 - Local save/reset, activity ledger, event notifications, and price history charts.
