@@ -6,6 +6,36 @@
   const BUY_MARKUP = 1.018;
   const SELL_MARKDOWN = 0.982;
 
+  const STRATEGY_PROFILES = {
+    preserve: {
+      id: "preserve",
+      label: "Preserve",
+      description: "Prefer nearby, liquid routes with contained downside.",
+      profitWeight: 0.72,
+      riskWeight: 0.62,
+      eventPenalty: 8,
+      locationBonus: 12
+    },
+    balanced: {
+      id: "balanced",
+      label: "Balanced",
+      description: "Balance executable profit, route quality, and resilience.",
+      profitWeight: 1,
+      riskWeight: 0.34,
+      eventPenalty: 4,
+      locationBonus: 6
+    },
+    momentum: {
+      id: "momentum",
+      label: "Momentum",
+      description: "Accept volatility to pursue the strongest moving spreads.",
+      profitWeight: 1.35,
+      riskWeight: 0.12,
+      eventPenalty: 0,
+      locationBonus: 2
+    }
+  };
+
   const GOODS = [
     {
       id: "food",
@@ -237,6 +267,7 @@
       day: 1,
       paused: false,
       selectedGood: "food",
+      strategyProfile: "balanced",
       speed: 2,
       player: {
         money: 2500,
@@ -313,6 +344,7 @@
     state.events = Array.isArray(loaded.events) ? loaded.events : [];
     state.log = Array.isArray(loaded.log) ? loaded.log.slice(0, 80) : fresh.log;
     state.selectedGood = getGood(loaded.selectedGood) ? loaded.selectedGood : "food";
+    state.strategyProfile = STRATEGY_PROFILES[loaded.strategyProfile] ? loaded.strategyProfile : "balanced";
     state.speed = clamp(Number(loaded.speed) || 2, 1, 4);
     return state;
   }
@@ -662,6 +694,7 @@
   function getRouteOpportunities(state, limit) {
     const opportunities = [];
     const cargoLeft = Math.max(0, state.player.capacity - getInventoryUsed(state));
+    const profile = STRATEGY_PROFILES[state.strategyProfile] || STRATEGY_PROFILES.balanced;
     GOODS.forEach((good) => {
       if (!state.unlockedGoods[good.id]) {
         return;
@@ -698,7 +731,12 @@
             99
           ));
           const projectedProfit = roundMoney(maxQty * margin - accessCost);
-          const score = Math.round(clamp(confidence + Math.max(0, projectedProfit) / 160 + Math.max(0, roi) * 45, 1, 99));
+          const profitSignal = (Math.max(0, projectedProfit) / 160 + Math.max(0, roi) * 45) * profile.profitWeight;
+          const score = Math.round(clamp(
+            confidence + profitSignal - risk * profile.riskWeight - eventExposure * profile.eventPenalty + (startsHere ? profile.locationBonus : 0),
+            1,
+            99
+          ));
           opportunities.push({
             good,
             buyMarket,
@@ -717,6 +755,8 @@
             riskLabel: getRouteRiskLabel(risk),
             score,
             eventNames,
+            profileId: profile.id,
+            profileLabel: profile.label,
             thesis: getRouteThesis(good, eventExposure, startsHere, maxQty)
           });
         });
@@ -841,6 +881,58 @@
         { label: "Event pressure", value: Math.round(eventPressure), tone: eventPressure >= 58 ? "hot" : "steady" },
         { label: "Route quality", value: Math.round(routeQuality), tone: routeQuality >= 72 ? "good" : "watch" }
       ]
+    };
+  }
+
+  function getStrategyForecast(state) {
+    const profile = STRATEGY_PROFILES[state.strategyProfile] || STRATEGY_PROFILES.balanced;
+    const route = getRouteOpportunities(state, 8).find((candidate) => candidate.margin > 0 && candidate.maxQty > 0);
+    if (!route) {
+      return {
+        profile,
+        route: null,
+        capitalAtRisk: 0,
+        breakEvenUnits: 0,
+        scenarios: [],
+        recommendation: "No executable route currently clears freight and access costs. Keep cash flexible or improve a local market."
+      };
+    }
+
+    const eventVolatility = route.eventNames.length * 0.045;
+    const riskBand = route.good.volatility + eventVolatility + route.risk / 700;
+    const routeOverhead = route.accessCost + route.freight;
+    const capitalAtRisk = roundMoney(route.maxQty * route.buy + routeOverhead);
+    const breakEvenUnits = route.margin > 0 ? Math.ceil(routeOverhead / route.margin) : route.maxQty;
+    const scenarioMargins = {
+      downside: route.margin - route.buy * (riskBand * 0.78 + 0.035),
+      base: route.margin,
+      upside: route.margin + route.buy * (riskBand * 0.52 + Math.max(0, route.roi) * 0.16)
+    };
+    const scenarios = [
+      { id: "downside", label: "Downside", margin: scenarioMargins.downside, tone: "bad" },
+      { id: "base", label: "Base", margin: scenarioMargins.base, tone: "base" },
+      { id: "upside", label: "Upside", margin: scenarioMargins.upside, tone: "good" }
+    ].map((scenario) => ({
+      ...scenario,
+      projectedProfit: roundMoney(route.maxQty * scenario.margin - routeOverhead)
+    }));
+
+    let recommendation = `Stage ${route.maxQty} units of ${route.good.name} from ${route.buyMarket.name} to ${route.sellMarket.name}.`;
+    if (profile.id === "preserve") {
+      recommendation = route.startsHere
+        ? `The route starts here and fits Preserve doctrine. Stage no more than ${route.maxQty} units and keep downside visible.`
+        : `Preserve doctrine dislikes the reposition cost. Consider waiting for a strong route from ${getMarket(state.player.location).name}.`;
+    } else if (profile.id === "momentum") {
+      recommendation = `Momentum doctrine accepts the ${route.riskLabel.toLowerCase()} profile. Re-scan immediately after the first sale.`;
+    }
+
+    return {
+      profile,
+      route,
+      capitalAtRisk,
+      breakEvenUnits,
+      scenarios,
+      recommendation
     };
   }
 
@@ -998,6 +1090,7 @@
     renderOperations(state, elements);
     renderRouteIntel(state, elements);
     renderMacroRegime(state, elements);
+    renderStrategyLab(state, elements);
     renderChart(state, elements.priceCanvas);
   }
 
@@ -1275,6 +1368,52 @@
     `).join("");
   }
 
+  function renderStrategyLab(state, elements) {
+    const forecast = getStrategyForecast(state);
+    const profile = forecast.profile;
+    elements.strategyProfileLabel.textContent = profile.label;
+    elements.strategyProfileDescription.textContent = profile.description;
+    elements.strategyProfileControl.querySelectorAll("[data-strategy-profile]").forEach((button) => {
+      const isActive = button.dataset.strategyProfile === profile.id;
+      button.classList.toggle("is-active", isActive);
+      button.setAttribute("aria-pressed", String(isActive));
+    });
+
+    if (!forecast.route) {
+      elements.strategyForecastSummary.innerHTML = `<p class="strategy-empty">${forecast.recommendation}</p>`;
+      elements.strategyStressMatrix.innerHTML = "";
+      elements.stageRouteButton.disabled = true;
+      elements.stageRouteButton.textContent = "No route to stage";
+      return;
+    }
+
+    const route = forecast.route;
+    elements.strategyForecastSummary.innerHTML = `
+      <div>
+        <span>Plan</span>
+        <strong>${route.good.name}: ${route.buyMarket.name} -> ${route.sellMarket.name}</strong>
+      </div>
+      <div>
+        <span>Capital at risk</span>
+        <strong>${formatCompactMoney(forecast.capitalAtRisk)}</strong>
+      </div>
+      <div>
+        <span>Break-even size</span>
+        <strong>${forecast.breakEvenUnits} units</strong>
+      </div>
+      <p>${forecast.recommendation}</p>
+    `;
+    elements.strategyStressMatrix.innerHTML = forecast.scenarios.map((scenario) => `
+      <article class="stress-case ${scenario.tone}">
+        <span>${scenario.label}</span>
+        <strong>${scenario.projectedProfit >= 0 ? "+" : ""}${formatCompactMoney(scenario.projectedProfit)}</strong>
+        <small>${formatMoney(scenario.margin)} per unit</small>
+      </article>
+    `).join("");
+    elements.stageRouteButton.disabled = route.maxQty <= 0;
+    elements.stageRouteButton.textContent = `Stage ${route.maxQty} ${route.good.name}`;
+  }
+
   function renderChart(state, canvas) {
     if (!canvas || !canvas.getContext) {
       return;
@@ -1434,6 +1573,34 @@
       rerender();
     });
 
+    elements.strategyProfileControl.addEventListener("click", (event) => {
+      const button = event.target.closest("[data-strategy-profile]");
+      if (!button || !STRATEGY_PROFILES[button.dataset.strategyProfile]) {
+        return;
+      }
+      state.strategyProfile = button.dataset.strategyProfile;
+      addLog(state, `Strategy profile changed to ${STRATEGY_PROFILES[state.strategyProfile].label}.`, "info");
+      rerender();
+    });
+
+    elements.stageRouteButton.addEventListener("click", () => {
+      const forecast = getStrategyForecast(state);
+      if (!forecast.route || forecast.route.maxQty <= 0) {
+        addLog(state, "No executable route is available to stage.", "warn");
+        rerender();
+        return;
+      }
+      const route = forecast.route;
+      state.selectedGood = route.good.id;
+      elements.quantityInput.value = route.maxQty;
+      addLog(
+        state,
+        `Plan staged: ${route.maxQty} ${route.good.unit} of ${route.good.name}, ${route.buyMarket.name} to ${route.sellMarket.name}.`,
+        "good"
+      );
+      rerender();
+    });
+
     window.addEventListener("resize", () => renderChart(state, elements.priceCanvas));
   }
 
@@ -1474,6 +1641,12 @@
       "macroRegimeLabel",
       "macroRegimeDoctrine",
       "regimeIndicators",
+      "strategyProfileLabel",
+      "strategyProfileControl",
+      "strategyProfileDescription",
+      "strategyForecastSummary",
+      "strategyStressMatrix",
+      "stageRouteButton",
       "progressList",
       "unlockBadge",
       "logList",
@@ -1521,6 +1694,7 @@
     GOODS,
     MARKETS,
     EVENT_TEMPLATES,
+    STRATEGY_PROFILES,
     createInitialState,
     tickEconomy,
     buyGood,
@@ -1532,6 +1706,7 @@
     scanMarket,
     getRouteOpportunities,
     getMarketRegime,
+    getStrategyForecast,
     getNetWorth,
     getInventoryUsed,
     getTradePrice,
