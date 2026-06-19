@@ -4,6 +4,14 @@ All notable changes to this project are documented here.
 
 ## 2026-06-19
 
+### Redesigned
+
+- Rebuilt the interface as a premium maritime exchange terminal with a deep chart-room palette, brass framing, and tabular market data.
+- Made the route map and spot market the dominant trading desk while tightening inventory, events, analysis, and ledger hierarchy.
+- Restyled every generated market row, route, action, strategy state, forecast, progress meter, and activity entry for the new visual system.
+- Updated the canvas chart palette for dark-surface contrast and clearer multi-market comparison.
+- Added responsive exchange layouts that move from three lanes to a single focused workflow without horizontal page overflow.
+
 ### Added
 
 - Strategy Lab with Preserve, Balanced, and Momentum trading profiles.

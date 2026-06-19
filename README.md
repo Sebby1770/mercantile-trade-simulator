@@ -2,11 +2,13 @@
 
 A browser-based trading simulation where supply, demand, NPC traders, transport costs, and world events create shifting arbitrage opportunities.
 
+The interface is designed as a responsive maritime exchange terminal, with the route map, spot market, strategy cockpit, and captain's ledger arranged around the core trade loop.
+
 ## Run
 
 Open `index.html` in a browser. The game is static and stores saves in `localStorage`.
 
-You can also run `./start.sh` and open `http://localhost:8000` if you prefer a local server URL.
+You can also run `python3 -m http.server 8000` and open `http://localhost:8000` if you prefer a local server URL.
 
 ## Included systems
 

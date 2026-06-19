@@ -229,11 +229,11 @@
   ];
 
   const MARKET_COLORS = {
-    harbor: "#177f76",
-    agraria: "#28865b",
-    foundry: "#b45531",
-    neon: "#6457a6",
-    alpine: "#c28a16"
+    harbor: "#46d8c5",
+    agraria: "#73c587",
+    foundry: "#ff784c",
+    neon: "#a988ff",
+    alpine: "#d8ad55"
   };
 
   function randomBetween(min, max) {
@@ -1442,20 +1442,20 @@
     const max = Math.max(...allValues) * 1.04;
     const span = Math.max(1, max - min);
 
-    ctx.fillStyle = "#fbfcf9";
-    ctx.strokeStyle = "#d8ded5";
+    ctx.fillStyle = "#071a22";
+    ctx.strokeStyle = "#38525a";
     ctx.lineWidth = 1;
     ctx.fillRect(0, 0, width, height);
     ctx.strokeRect(padding.left, padding.top, plotW, plotH);
 
     ctx.font = "12px Inter, system-ui, sans-serif";
-    ctx.fillStyle = "#66716f";
+    ctx.fillStyle = "#8fa9ad";
     ctx.textAlign = "right";
     ctx.textBaseline = "middle";
     for (let i = 0; i <= 4; i += 1) {
       const value = min + (span * i) / 4;
       const y = padding.top + plotH - (plotH * i) / 4;
-      ctx.strokeStyle = i === 0 ? "#b8c4bb" : "#e2e7e0";
+      ctx.strokeStyle = i === 0 ? "#38525a" : "#16323b";
       ctx.beginPath();
       ctx.moveTo(padding.left, y);
       ctx.lineTo(padding.left + plotW, y);
@@ -1464,7 +1464,7 @@
     }
 
     histories.forEach((item) => {
-      ctx.strokeStyle = MARKET_COLORS[item.market.id] || "#177f76";
+      ctx.strokeStyle = MARKET_COLORS[item.market.id] || "#46d8c5";
       ctx.lineWidth = item.market.id === state.player.location ? 3 : 1.8;
       ctx.beginPath();
       item.values.forEach((value, index) => {
@@ -1483,9 +1483,9 @@
     ctx.textBaseline = "alphabetic";
     let legendX = padding.left;
     histories.forEach((item) => {
-      ctx.fillStyle = MARKET_COLORS[item.market.id] || "#177f76";
+      ctx.fillStyle = MARKET_COLORS[item.market.id] || "#46d8c5";
       ctx.fillRect(legendX, height - 20, 10, 10);
-      ctx.fillStyle = "#172121";
+      ctx.fillStyle = "#e8e0ca";
       ctx.fillText(item.market.name, legendX + 14, height - 11);
       legendX += ctx.measureText(item.market.name).width + 36;
     });
