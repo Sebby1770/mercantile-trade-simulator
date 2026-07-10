@@ -71,6 +71,19 @@ html, body {
 }
 .brand { font-weight: 700; letter-spacing: 3px; font-size: 13px; color: var(--accent); white-space: nowrap; }
 .brand sub { font-size: 9px; color: var(--muted); letter-spacing: 1px; display: block; margin-top: 1px; }
+.health-badge {
+  font-size: 9px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  padding: 3px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  color: var(--muted);
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+.health-badge.ok { color: var(--up); border-color: rgba(74, 222, 128, 0.35); }
+.health-badge.bad { color: var(--down); border-color: rgba(248, 113, 113, 0.35); }
 .top-stats { display: flex; gap: 20px; flex: 1; overflow: hidden; }
 .stat { display: flex; flex-direction: column; min-width: 0; }
 .stat-label { font-size: 9px; color: var(--muted); text-transform: uppercase; letter-spacing: 1.5px; }
@@ -381,6 +394,7 @@ table.mt {
   <!-- TOPBAR -->
   <div class="topbar">
     <div class="brand">MERCANTILE<sub>TRADE TERMINAL</sub></div>
+    <div class="health-badge" id="health-badge" title="API health">…</div>
     <div class="top-stats">
       <div class="stat"><div class="stat-label">Cash</div><div class="stat-value gold" id="s-cash">$2,000</div></div>
       <div class="stat"><div class="stat-label">Net Worth</div><div class="stat-value accent" id="s-nw">$2,000</div></div>

@@ -1,15 +1,20 @@
 """Mercantile — Core game engine (runs server-side, authoritative)"""
 from __future__ import annotations
+import csv
+import io
 import math
 import random
 from dataclasses import dataclass, field
 from typing import Optional
 
+VERSION = "1.1.0"
 TICK_INTERVAL = 1.5
 HISTORY_LEN = 100
 GOAL = 500_000
 START_CASH = 2_000
 BASE_CARGO = 20
+MILLIONAIRE_THRESHOLD = 100_000
+GLOBE_TROTTER_CITIES = 5
 
 # ─── GOODS ──────────────────────────────────────────────────────────────────
 
@@ -84,6 +89,31 @@ CARGO_UPGRADE_COSTS = [0, 8_000, 20_000, 50_000]
 SPEED_LEVELS = [1.0, 0.75, 0.55]
 SPEED_UPGRADE_COSTS = [0, 12_000, 35_000]
 
+# ─── ACHIEVEMENTS ───────────────────────────────────────────────────────────
+
+ACHIEVEMENTS = {
+    'first_trade': dict(
+        id='first_trade',
+        name='First Trade',
+        desc='Complete your first buy or sell.',
+    ),
+    'millionaire': dict(
+        id='millionaire',
+        name='Millionaire',
+        desc=f'Reach a net worth of ${MILLIONAIRE_THRESHOLD:,}.',
+    ),
+    'globe_trotter': dict(
+        id='globe_trotter',
+        name='Globe Trotter',
+        desc=f'Visit {GLOBE_TROTTER_CITIES} different cities.',
+    ),
+    'event_survivor': dict(
+        id='event_survivor',
+        name='Event Survivor',
+        desc='Remain active during a market crisis.',
+    ),
+}
+
 # ─── EVENTS ─────────────────────────────────────────────────────────────────
 
 EVENT_POOL = [
@@ -110,6 +140,51 @@ RIVAL_DEFS = [
     dict(name='Iron Sun Trading',  strategy='opportunist',  start=1100),
     dict(name='House Aldric',      strategy='luxury',       start=900),
 ]
+
+# ─── PURE HELPERS (testable) ─────────────────────────────────────────────────
+
+
+def compute_target_price(base: float, demand: float, stock: float, elast: float) -> float:
+    """Equilibrium target price: base * (demand / stock) ** elast."""
+    safe_stock = max(stock, 1e-9)
+    safe_demand = max(demand, 1e-9)
+    return base * math.pow(safe_demand / safe_stock, elast)
+
+
+def route_key(a: str, b: str) -> str:
+    return f'{a}:{b}'
+
+
+def route_exists(a: str, b: str, routes: dict[str, int] | None = None) -> bool:
+    table = routes if routes is not None else ROUTES
+    return route_key(a, b) in table
+
+
+def format_log_markdown(log: list[dict], n: int | None = None) -> str:
+    """Render the last N captain's log entries as Markdown."""
+    entries = log[-n:] if n is not None else log
+    lines = ['# Trade Journal', '']
+    if not entries:
+        lines.append('_No entries yet._')
+        return '\n'.join(lines)
+    lines.append('| Day | Kind | Message |')
+    lines.append('| --- | ---- | ------- |')
+    for e in entries:
+        msg = str(e.get('msg', '')).replace('|', '\\|')
+        lines.append(f"| {e.get('day', '')} | {e.get('kind', '')} | {msg} |")
+    return '\n'.join(lines) + '\n'
+
+
+def format_log_csv(log: list[dict], n: int | None = None) -> str:
+    """Render the last N captain's log entries as CSV."""
+    entries = log[-n:] if n is not None else log
+    buf = io.StringIO()
+    writer = csv.DictWriter(buf, fieldnames=['day', 'kind', 'msg'], extrasaction='ignore')
+    writer.writeheader()
+    for e in entries:
+        writer.writerow({'day': e.get('day', ''), 'kind': e.get('kind', ''), 'msg': e.get('msg', '')})
+    return buf.getvalue()
+
 
 # ─── DATA CLASSES ────────────────────────────────────────────────────────────
 
@@ -175,6 +250,13 @@ class PlayerState:
     log: list = field(default_factory=list)
     total_profit: float = 0.0
     total_trades: int = 0
+    achievements: list = field(default_factory=list)
+    visited_cities: list = field(default_factory=list)
+    crisis_ticks: int = 0
+
+    def __post_init__(self):
+        if not self.visited_cities:
+            self.visited_cities = [self.location]
 
     def cargo_max(self) -> int:
         base = CARGO_LEVELS[self.cargo_level]
@@ -207,19 +289,74 @@ class PlayerState:
         if len(self.log) > 80:
             self.log = self.log[-80:]
 
+    def mark_visited(self, city_id: str):
+        if city_id not in self.visited_cities:
+            self.visited_cities.append(city_id)
+
+    def unlock_achievement(self, aid: str, day: int = 0) -> bool:
+        if aid not in ACHIEVEMENTS or aid in self.achievements:
+            return False
+        self.achievements.append(aid)
+        meta = ACHIEVEMENTS[aid]
+        self.add_log('achievement', f'Achievement unlocked: {meta["name"]} — {meta["desc"]}', day)
+        return True
+
+    def check_achievements(self, markets: dict, day: int = 0, crisis_active: bool = False) -> list[str]:
+        """Evaluate achievement conditions; return newly unlocked ids."""
+        newly: list[str] = []
+        if crisis_active:
+            self.crisis_ticks += 1
+
+        if self.total_trades >= 1 and self.unlock_achievement('first_trade', day):
+            newly.append('first_trade')
+        if self.net_worth(markets) >= MILLIONAIRE_THRESHOLD and self.unlock_achievement('millionaire', day):
+            newly.append('millionaire')
+        if len(self.visited_cities) >= GLOBE_TROTTER_CITIES and self.unlock_achievement('globe_trotter', day):
+            newly.append('globe_trotter')
+        if self.crisis_ticks >= 1 and self.unlock_achievement('event_survivor', day):
+            newly.append('event_survivor')
+        return newly
+
+    def journal(self, fmt: str = 'markdown', n: int = 40) -> str:
+        """Export the captain's log as markdown or csv."""
+        if fmt == 'csv':
+            return format_log_csv(self.log, n)
+        return format_log_markdown(self.log, n)
+
+    def reset_progress(self):
+        """Restore a player to a fresh start (keeps pid)."""
+        self.cash = START_CASH
+        self.inventory = {}
+        self.location = 'veridian'
+        self.travel = None
+        self.cargo_level = 0
+        self.speed_level = 0
+        self.loan = 0.0
+        self.buildings = {}
+        self.reputation = {cid: 0.0 for cid in CITIES}
+        self.log = []
+        self.total_profit = 0.0
+        self.total_trades = 0
+        self.achievements = []
+        self.visited_cities = ['veridian']
+        self.crisis_ticks = 0
+
 
 # ─── GAME WORLD ─────────────────────────────────────────────────────────────
 
 class GameWorld:
     """Shared authoritative economy — all players interact with the same market."""
 
-    def __init__(self):
+    def __init__(self, seed: int | None = None):
+        # Isolated RNG so tests can be deterministic; None uses system entropy.
+        self.seed = seed
+        self.rng = random.Random(seed) if seed is not None else random.Random()
         self.tick: int = 0
         self.markets: dict[str, dict[str, MarketState]] = {}
         self.history: dict[str, dict[str, list]] = {}
         self.events: list[EventRecord] = []
         self.rivals: list[Rival] = []
-        self.next_event_tick: int = 8 + random.randint(0, 5)
+        self.next_event_tick: int = 8 + self.rng.randint(0, 5)
         self._init_markets()
         self._init_rivals()
 
@@ -234,11 +371,11 @@ class GameWorld:
                 bs = 65 * bias
                 bd = 65 / bias
                 self.markets[cid][gid] = MarketState(
-                    stock=bs * (0.88 + random.random() * 0.24),
+                    stock=bs * (0.88 + self.rng.random() * 0.24),
                     baseline_stock=bs,
-                    demand=bd * (0.88 + random.random() * 0.24),
+                    demand=bd * (0.88 + self.rng.random() * 0.24),
                     baseline_demand=bd,
-                    price=g['base'] * (0.88 + random.random() * 0.24),
+                    price=g['base'] * (0.88 + self.rng.random() * 0.24),
                     prev_price=g['base'],
                 )
                 self.history[cid][gid] = []
@@ -272,15 +409,15 @@ class GameWorld:
         sm, dm = self._event_mods(city_id, good_id)
 
         m.stock += (m.baseline_stock * sm - m.stock) * 0.10
-        m.stock *= 1 + (random.random() - 0.5) * 0.04
+        m.stock *= 1 + (self.rng.random() - 0.5) * 0.04
         m.stock = max(2.0, m.stock)
 
         m.demand += (m.baseline_demand * dm - m.demand) * 0.14
-        m.demand *= 1 + (random.random() - 0.5) * 0.05
+        m.demand *= 1 + (self.rng.random() - 0.5) * 0.05
         m.demand = max(2.0, m.demand)
 
-        target_p = g['base'] * math.pow(m.demand / m.stock, g['elast'])
-        noise = 1 + (random.random() - 0.5) * g['vol'] * 0.15
+        target_p = compute_target_price(g['base'], m.demand, m.stock, g['elast'])
+        noise = 1 + (self.rng.random() - 0.5) * g['vol'] * 0.15
         m.prev_price = m.price
         m.price += (target_p * noise - m.price) * 0.28
         m.price = max(g['base'] * 0.12, m.price)
@@ -293,14 +430,14 @@ class GameWorld:
     def _maybe_spawn_event(self) -> Optional[EventRecord]:
         if self.tick < self.next_event_tick:
             return None
-        tmpl = random.choice(EVENT_POOL)
+        tmpl = self.rng.choice(EVENT_POOL)
         if tmpl['target'] == 'city':
-            c = random.choice(CITIES_DEFS)
+            c = self.rng.choice(CITIES_DEFS)
             target, tname = c['id'], c['name']
         else:
             target, tname = None, 'Global Markets'
         ev = EventRecord(
-            inst_id=f"ev{self.tick}{random.randint(100,999)}",
+            inst_id=f"ev{self.tick}{self.rng.randint(100,999)}",
             tmpl_id=tmpl['id'],
             title=tmpl['title'],
             kind=tmpl['kind'],
@@ -308,13 +445,13 @@ class GameWorld:
             target_type=tmpl['target'],
             target=target,
             target_name=tname,
-            goods=tmpl['goods'],
+            goods=list(tmpl['goods']),
             s_mul=tmpl['s'],
             d_mul=tmpl['d'],
-            expires=self.tick + random.randint(*tmpl['dur']),
+            expires=self.tick + self.rng.randint(*tmpl['dur']),
         )
         self.events.append(ev)
-        self.next_event_tick = self.tick + random.randint(8, 14)
+        self.next_event_tick = self.tick + self.rng.randint(8, 14)
         return ev
 
     # ── AI Rivals ────────────────────────────────────────────────────────────
@@ -369,13 +506,13 @@ class GameWorld:
             best_gid, best_ratio = None, float('inf')
             for gid in focus:
                 here = self.markets[r.location][gid].price
-                ratio = here / avg[gid]
+                ratio = here / avg[gid] if avg[gid] else float('inf')
                 if ratio < 0.82 and ratio < best_ratio and here * 3 <= r.cash:
                     best_ratio = ratio
                     best_gid = gid
             if best_gid:
                 m = self.markets[r.location][best_gid]
-                qty = min(r.cargo_max - self._rival_cargo(r), int(r.cash / m.price), 5)
+                qty = min(r.cargo_max - self._rival_cargo(r), int(r.cash / m.price) if m.price > 0 else 0, 5)
                 if qty > 0:
                     r.cash -= qty * m.price
                     m.stock = max(2.0, m.stock - qty * 0.7)
@@ -397,7 +534,8 @@ class GameWorld:
                 if score > best_score:
                     best_score, best_city = score, cid
             if not best_city or best_score < -60:
-                best_city = random.choice([c for c in CITIES if c != r.location])
+                candidates = [c for c in CITIES if c != r.location]
+                best_city = self.rng.choice(candidates) if candidates else r.location
             dist = ROUTES.get(f'{r.location}:{best_city}', 4)
             r.travel = TravelInfo(frm=r.location, to=best_city, eta_tick=self.tick + dist)
             r.last_action = f'en route to {CITIES[best_city]["name"]}'
@@ -436,6 +574,8 @@ class GameWorld:
                     dist = ROUTES.get(f'{buy_city}:{sell_city}')
                     if not dist:
                         continue
+                    if prices[buy_city] <= 0:
+                        continue
                     margin = (prices[sell_city] - prices[buy_city]) / prices[buy_city]
                     if margin > 0.05:
                         opps.append({
@@ -453,7 +593,8 @@ class GameWorld:
 
     # ── Main step ────────────────────────────────────────────────────────────
 
-    def step(self, players: list[PlayerState]) -> Optional[EventRecord]:
+    def step(self, players: list[PlayerState] | None = None) -> Optional[EventRecord]:
+        players = players or []
         self.tick += 1
 
         for cid in CITIES:
@@ -466,16 +607,68 @@ class GameWorld:
         for r in self.rivals:
             self._tick_rival(r)
 
+        crisis_active = any(e.kind == 'crisis' for e in self.events)
+
         for p in players:
             if p.travel and self.tick >= p.travel.eta_tick:
                 p.location = p.travel.to
                 p.travel = None
+                p.mark_visited(p.location)
                 p.add_log('travel', f'Arrived at {CITIES[p.location]["name"]}.', self.tick)
             if p.loan > 0:
                 p.loan *= (1 + p.loan_rate)
             self._tick_buildings(p)
+            p.check_achievements(self.markets, day=self.tick, crisis_active=crisis_active)
 
         return new_ev
+
+    # ── Public economy snapshot (no private player data) ─────────────────────
+
+    def public_snapshot(self) -> dict:
+        """Observer-safe view of the shared economy."""
+        avg_price = {
+            gid: sum(self.markets[cid][gid].price for cid in self.markets) / len(self.markets)
+            for gid in GOODS
+        }
+        markets_out = {
+            cid: {
+                gid: {
+                    'price': round(m.price, 2),
+                    'prev':  round(m.prev_price, 2),
+                    'stock': round(m.stock, 1),
+                    'base_stock': round(m.baseline_stock, 1),
+                    'demand': round(m.demand, 1),
+                    'avg': round(avg_price[gid], 2),
+                }
+                for gid, m in goods.items()
+            }
+            for cid, goods in self.markets.items()
+        }
+        events_out = [
+            {
+                'id': ev.inst_id, 'title': ev.title, 'kind': ev.kind,
+                'desc': ev.desc, 'target': ev.target, 'target_name': ev.target_name,
+                'target_type': ev.target_type, 'goods': ev.goods,
+                'remaining': ev.expires - self.tick,
+            }
+            for ev in self.events
+        ]
+        rivals_out = [
+            {
+                'id': r.id, 'name': r.name, 'nw': round(self._rival_nw(r)),
+                'location': r.location, 'traveling': r.travel is not None,
+                'last_action': r.last_action,
+            }
+            for r in self.rivals
+        ]
+        return {
+            'tick': self.tick,
+            'version': VERSION,
+            'markets': markets_out,
+            'events': events_out,
+            'rivals': rivals_out,
+            'bestRoutes': self.best_routes(),
+        }
 
     # ── Serialisation ────────────────────────────────────────────────────────
 
@@ -524,14 +717,30 @@ class GameWorld:
             for r in self.rivals
         ]
 
+        # Ensure non-crisis achievements stay current on every snapshot
+        # (crisis counting is handled in step(); don't double-count here)
+        player.check_achievements(self.markets, day=self.tick, crisis_active=False)
+
+        achievements_out = []
+        unlocked = set(player.achievements)
+        for aid, meta in ACHIEVEMENTS.items():
+            achievements_out.append({
+                'id': meta['id'],
+                'name': meta['name'],
+                'desc': meta['desc'],
+                'unlocked': aid in unlocked,
+            })
+
         return {
             'tick': self.tick,
+            'version': VERSION,
             'markets': markets_out,
             'history': history_out,
             'events': events_out,
             'rivals': rivals_out,
             'bestRoutes': self.best_routes(),
             'player': {
+                'pid': player.pid,
                 'cash': round(player.cash, 2),
                 'loan': round(player.loan, 2),
                 'inventory': {gid: {'qty': h['qty'], 'cost': round(h['cost'], 2)}
@@ -550,10 +759,14 @@ class GameWorld:
                 'netWorth': round(player.net_worth(self.markets), 2),
                 'totalProfit': round(player.total_profit, 2),
                 'totalTrades': player.total_trades,
+                'visitedCities': list(player.visited_cities),
+                'achievements': achievements_out,
+                'unlockedAchievements': list(player.achievements),
                 'log': player.log[-40:],
             },
             'meta': {
                 'goal': GOAL,
+                'version': VERSION,
                 'goods': GOODS_DEFS,
                 'cities': CITIES_DEFS,
                 'routes': [{'a': a, 'b': b, 'd': d} for a, b, d in ROUTES_RAW],
@@ -562,5 +775,6 @@ class GameWorld:
                 'cargoUpgradeCosts': CARGO_UPGRADE_COSTS,
                 'speedLevels': SPEED_LEVELS,
                 'speedUpgradeCosts': SPEED_UPGRADE_COSTS,
+                'achievements': list(ACHIEVEMENTS.values()),
             },
         }

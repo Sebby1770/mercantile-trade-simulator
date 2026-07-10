@@ -1,24 +1,32 @@
-"""Mercantile — FastAPI WebSocket game server"""
+"""Mercantile — FastAPI WebSocket + REST game server"""
 import asyncio
 import json
+import os
 import time
 import uuid
 from contextlib import asynccontextmanager
-
 from pathlib import Path
+from typing import Optional
 
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, Header, HTTPException, Query, WebSocket, WebSocketDisconnect
+from fastapi.responses import PlainTextResponse
 from fastapi.staticfiles import StaticFiles
+from pydantic import BaseModel, Field
 
 from engine import (
-    GameWorld, PlayerState, TravelInfo,
-    ROUTES, CITIES, GOODS, BUILDINGS,
+    VERSION, GameWorld, PlayerState, TravelInfo,
+    ROUTES, ROUTES_RAW, CITIES, CITIES_DEFS, GOODS, GOODS_DEFS, BUILDINGS, ACHIEVEMENTS,
     CARGO_UPGRADE_COSTS, SPEED_UPGRADE_COSTS, CARGO_LEVELS,
     GOAL, START_CASH,
 )
 
-world = GameWorld()
+# Seed from env for reproducible offline runs; omit for live entropy.
+_WORLD_SEED = os.environ.get('MERCANTILE_SEED')
+world = GameWorld(seed=int(_WORLD_SEED) if _WORLD_SEED is not None else None)
 connections: dict[str, tuple[WebSocket, PlayerState]] = {}
+
+SIM_TOKEN = os.environ.get('SIM_TOKEN', 'dev')
+IS_PRODUCTION = os.environ.get('ENV', '').lower() in {'production', 'prod'}
 
 
 @asynccontextmanager
@@ -27,7 +35,11 @@ async def lifespan(app: FastAPI):
     yield
 
 
-app = FastAPI(lifespan=lifespan)
+app = FastAPI(
+    title='Mercantile Trade Simulator',
+    version=VERSION,
+    lifespan=lifespan,
+)
 
 
 async def _game_loop():
@@ -56,13 +68,129 @@ async def _game_loop():
         await asyncio.sleep(max(0.05, 1.5 - elapsed))
 
 
+# ─── REST API ────────────────────────────────────────────────────────────────
+
+
+class TickBody(BaseModel):
+    n: int = Field(default=1, ge=1, le=500)
+
+
+def _require_sim_token(x_sim_token: Optional[str]) -> None:
+    """In production, require X-Sim-Token; elsewhere accept default/dev token or open access."""
+    if IS_PRODUCTION:
+        if not x_sim_token or x_sim_token != SIM_TOKEN:
+            raise HTTPException(status_code=403, detail='Invalid or missing X-Sim-Token')
+    elif x_sim_token is not None and x_sim_token != SIM_TOKEN:
+        # Non-prod: if a token is sent, it must match; omission is allowed for testing.
+        raise HTTPException(status_code=403, detail='Invalid X-Sim-Token')
+
+
+@app.get('/api/health')
+async def api_health():
+    return {
+        'ok': True,
+        'service': 'mercantile-trade-simulator',
+        'tick': world.tick,
+        'players': len(connections),
+        'version': VERSION,
+    }
+
+
+@app.get('/api/snapshot')
+async def api_snapshot():
+    """Public economy snapshot without private player wallets."""
+    snap = world.public_snapshot()
+    snap['players'] = len(connections)
+    return snap
+
+
+@app.get('/api/cities')
+async def api_cities():
+    return {
+        'cities': [
+            {
+                'id': c['id'],
+                'name': c['name'],
+                'tag': c['tag'],
+                'x': c['x'],
+                'y': c['y'],
+                'color': c['color'],
+            }
+            for c in CITIES_DEFS
+        ],
+        'routes': [{'a': a, 'b': b, 'd': d} for a, b, d in ROUTES_RAW],
+    }
+
+
+@app.get('/api/goods')
+async def api_goods():
+    return {'goods': GOODS_DEFS}
+
+
+@app.post('/api/sim/tick')
+async def api_sim_tick(
+    body: TickBody | None = None,
+    x_sim_token: Optional[str] = Header(default=None, alias='X-Sim-Token'),
+):
+    """Advance the world N ticks (offline / testing). Protected in production."""
+    _require_sim_token(x_sim_token)
+    n = (body.n if body else 1)
+    players = [p for _, p in connections.values()]
+    last_ev = None
+    for _ in range(n):
+        last_ev = world.step(players)
+    return {
+        'ok': True,
+        'ticks_advanced': n,
+        'tick': world.tick,
+        'last_event': (
+            {'title': last_ev.title, 'kind': last_ev.kind, 'desc': last_ev.desc}
+            if last_ev else None
+        ),
+    }
+
+
+@app.get('/api/players/{pid}/journal')
+async def api_player_journal(
+    pid: str,
+    fmt: str = Query(default='markdown', pattern='^(markdown|csv)$'),
+    n: int = Query(default=40, ge=1, le=80),
+):
+    """Export a connected player's trade journal as markdown or CSV."""
+    conn = connections.get(pid)
+    if not conn:
+        raise HTTPException(status_code=404, detail='Player not connected')
+    _, player = conn
+    text = player.journal(fmt=fmt, n=n)
+    media = 'text/csv' if fmt == 'csv' else 'text/markdown'
+    return PlainTextResponse(text, media_type=media)
+
+
+@app.get('/api/journal')
+async def api_journal_by_query(
+    pid: str = Query(..., description='Connected player id'),
+    fmt: str = Query(default='markdown', pattern='^(markdown|csv)$'),
+    n: int = Query(default=40, ge=1, le=80),
+):
+    """Alternate journal endpoint: ?pid=…"""
+    return await api_player_journal(pid=pid, fmt=fmt, n=n)
+
+
+@app.get('/api/achievements')
+async def api_achievements():
+    return {'achievements': list(ACHIEVEMENTS.values())}
+
+
+# ─── WebSocket ───────────────────────────────────────────────────────────────
+
+
 @app.websocket('/ws')
 async def ws_endpoint(ws: WebSocket):
     await ws.accept()
     pid = str(uuid.uuid4())[:8]
     player = PlayerState(pid=pid)
     player.reputation = {cid: 0.0 for cid in CITIES}
-    player.add_log('system', 'Welcome, trader. Your empire begins here.', 0)
+    player.add_log('system', 'Welcome, trader. Your empire begins here.', world.tick)
     connections[pid] = (ws, player)
 
     # Send immediate snapshot so UI doesn't wait for first tick
@@ -134,6 +262,7 @@ def _buy(msg: dict, p: PlayerState) -> dict:
     p.inventory[gid] = {'qty': nq, 'cost': (prev['qty'] * prev['cost'] + cost) / nq}
     p.total_trades += 1
     p.reputation[p.location] = min(1.0, p.reputation.get(p.location, 0) + 0.01)
+    p.check_achievements(world.markets, day=world.tick, crisis_active=False)
     p.add_log('buy', f'Bought {qty}x {GOODS[gid]["name"]} @ ${price:.2f} = ${cost:,.2f}', world.tick)
     return _ok(f'Bought {qty}x {GOODS[gid]["name"]}')
 
@@ -161,6 +290,7 @@ def _sell(msg: dict, p: PlayerState) -> dict:
     if hold['qty'] <= 0:
         del p.inventory[gid]
     p.reputation[p.location] = min(1.0, p.reputation.get(p.location, 0) + 0.01)
+    p.check_achievements(world.markets, day=world.tick, crisis_active=False)
     sign = '+' if profit >= 0 else ''
     p.add_log('sell', f'Sold {qty}x {GOODS[gid]["name"]} @ ${price:.2f} → P&L {sign}${profit:,.2f}', world.tick)
     return _ok(f'Sold. P&L: {sign}${profit:,.2f}')
@@ -253,21 +383,11 @@ def _repay_loan(msg: dict, p: PlayerState) -> dict:
 
 
 def _reset(p: PlayerState) -> dict:
-    p.cash = START_CASH
-    p.inventory = {}
-    p.location = 'veridian'
-    p.travel = None
-    p.cargo_level = 0
-    p.speed_level = 0
-    p.loan = 0.0
-    p.buildings = {}
-    p.reputation = {cid: 0.0 for cid in CITIES}
-    p.log = []
-    p.total_profit = 0.0
-    p.total_trades = 0
+    p.reset_progress()
     p.add_log('system', 'New game started. Good luck, trader.', world.tick)
     return _ok('Game reset.')
 
 
+# Static files last so /api/* and /ws take precedence
 STATIC_DIR = Path(__file__).parent / 'static'
 app.mount('/', StaticFiles(directory=STATIC_DIR, html=True), name='static')

@@ -989,6 +989,28 @@ window.addEventListener('keydown', (e) => {
 });
 
 /* ════════════════════════════════════════════════════
+   API HEALTH BADGE
+   ════════════════════════════════════════════════════ */
+async function pollHealth() {
+  const el = document.getElementById('health-badge');
+  if (!el) return;
+  try {
+    const res = await fetch('/api/health', { cache: 'no-store' });
+    if (!res.ok) throw new Error('bad status');
+    const data = await res.json();
+    el.textContent = `v${data.version || '?'} · d${data.tick ?? 0} · ${data.players ?? 0}p`;
+    el.className = 'health-badge ok';
+    el.title = `OK · service ${data.service || 'mercantile'} · tick ${data.tick}`;
+  } catch (_) {
+    el.textContent = 'offline';
+    el.className = 'health-badge bad';
+    el.title = 'API health check failed';
+  }
+}
+
+/* ════════════════════════════════════════════════════
    BOOT
    ════════════════════════════════════════════════════ */
 connect();
+pollHealth();
+setInterval(pollHealth, 10000);

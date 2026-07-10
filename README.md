@@ -1,28 +1,143 @@
-# Dynamic Trade & Economy Simulator
+# Mercantile Trade Simulator
 
-A browser-based trading simulation where supply, demand, NPC traders, transport costs, and world events create shifting arbitrage opportunities.
+A FastAPI + WebSocket multiplayer-ready trading simulation. Supply, demand, NPC rivals, transport costs, and world events create shifting arbitrage opportunities. The authoritative economy runs in `engine.py`; browsers connect over WebSocket and a small REST API is available for health checks, observers, and offline ticks.
 
-The interface is designed as a responsive maritime exchange terminal, with the route map, spot market, strategy cockpit, and captain's ledger arranged around the core trade loop.
+**Version:** 1.1.0
 
-## Run
+## Run (recommended)
 
-Open `index.html` in a browser. The game is static and stores saves in `localStorage`.
+```bash
+./start.sh
+```
 
-You can also run `python3 -m http.server 8000` and open `http://localhost:8000` if you prefer a local server URL.
+This creates a virtualenv, installs dependencies, and starts Uvicorn at [http://localhost:8000](http://localhost:8000).
+
+Manual equivalent:
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+python3 -m uvicorn server:app --host 0.0.0.0 --port 8000 --reload
+```
+
+Optional environment variables:
+
+| Variable | Default | Purpose |
+| --- | --- | --- |
+| `MERCANTILE_SEED` | unset | Integer seed for deterministic world RNG |
+| `SIM_TOKEN` | `dev` | Token required for `POST /api/sim/tick` when `ENV=production` |
+| `ENV` | unset | Set to `production` to enforce sim-tick auth |
+
+## Architecture
+
+| Path | Role |
+| --- | --- |
+| `engine.py` | Pure game world: markets, events, rivals, achievements, serialize |
+| `server.py` | FastAPI app: WebSocket game loop + REST |
+| `static/` | Browser client served at `/` |
+| `tests/` | Pytest suite for the engine |
+
+The engine is importable without starting the server:
+
+```python
+from engine import GameWorld, PlayerState
+
+world = GameWorld(seed=42)
+player = PlayerState(pid='demo')
+world.step([player])
+print(world.serialize(player)['tick'])
+```
+
+## WebSocket
+
+Connect to `ws://localhost:8000/ws`. The server pushes `{ type: "state", data: ... }` each tick (~1.5s) and accepts action messages:
+
+`buy`, `sell`, `travel`, `build`, `upgrade_cargo`, `upgrade_speed`, `take_loan`, `repay_loan`, `reset`.
+
+## REST API
+
+| Method | Path | Description |
+| --- | --- | --- |
+| `GET` | `/api/health` | `{ ok, service, tick, players, version }` |
+| `GET` | `/api/snapshot` | Public economy snapshot (no private wallets) |
+| `GET` | `/api/cities` | Static city catalog + routes |
+| `GET` | `/api/goods` | Static goods catalog |
+| `GET` | `/api/achievements` | Achievement definitions |
+| `POST` | `/api/sim/tick` | Advance world `n` ticks (body `{ "n": 1 }`) |
+| `GET` | `/api/players/{pid}/journal` | Markdown/CSV log for a **connected** player |
+| `GET` | `/api/journal?pid=` | Same journal export via query param |
+
+### Examples
+
+```bash
+curl -s http://localhost:8000/api/health | jq
+curl -s http://localhost:8000/api/snapshot | jq '.tick,.events'
+curl -s -X POST http://localhost:8000/api/sim/tick \
+  -H 'Content-Type: application/json' \
+  -H 'X-Sim-Token: dev' \
+  -d '{"n": 5}'
+```
+
+In production (`ENV=production`), `POST /api/sim/tick` requires header `X-Sim-Token` matching `SIM_TOKEN`.
+
+## Deterministic seeds
+
+```python
+world = GameWorld(seed=42)   # fully reproducible ticks/events/rivals
+world = GameWorld()          # system entropy (default)
+```
+
+Or start the server with `MERCANTILE_SEED=42 ./start.sh`.
+
+## Achievements
+
+Tracked on `PlayerState` and included in the player serialize payload:
+
+| Id | Condition |
+| --- | --- |
+| `first_trade` | Complete at least one buy or sell |
+| `millionaire` | Net worth ≥ $100,000 |
+| `globe_trotter` | Visit 5 distinct cities |
+| `event_survivor` | Be active for at least one tick during a crisis |
+
+Unlocked achievements appear under `player.unlockedAchievements` and as detailed flags in `player.achievements`.
+
+## Trade journal
+
+Each player keeps a rolling captain's log (last 80 entries). Export:
+
+```python
+player.journal(fmt='markdown', n=40)
+player.journal(fmt='csv', n=40)
+```
+
+Or via REST when the player is connected over WebSocket:
+
+```
+GET /api/players/{pid}/journal?fmt=markdown&n=40
+GET /api/journal?pid={pid}&fmt=csv
+```
+
+## Tests
+
+```bash
+pip install -r requirements.txt
+pytest -q
+```
+
+CI runs pytest on Python 3.11 and 3.12 (see `.github/workflows/ci.yml`).
 
 ## Included systems
 
-- Goods with base price, live price, volatility, trends, and unlock thresholds.
-- Multiple regional markets with distinct supply and demand profiles.
-- Smoothed price formula based on `base_price * demand / supply`.
-- Random duration-based events such as droughts, wars, tech booms, strikes, and surpluses.
-- Player money, cargo capacity, inventory, buy/sell actions, route travel, and upgrades.
-- NPC pressure that buys underpriced goods and sells overpriced goods.
-- Progression through higher net worth, unlocking goods and markets.
-- Route intelligence panel that ranks profitable arbitrage paths after freight costs.
-- Risk-adjusted trade thesis scoring with confidence, event exposure, cargo fit, and projected run profit.
-- Macro regime model that classifies the economy by dispersion, volatility, liquidity, event pressure, and route quality.
-- Strategy Lab with risk profiles, forward stress cases, capital-at-risk sizing, and route staging.
-- Local save/reset, activity ledger, event notifications, and price history charts.
+- Goods with base price, elasticity, volatility, and category tags
+- Regional markets with supply/demand bias per city
+- Price formula `base * (demand / stock) ** elast` with smoothing + noise
+- Duration-based events (droughts, wars, tech booms, harvests, …)
+- Player cash, cargo, inventory, travel, buildings, loans, upgrades
+- NPC rivals with strategy archetypes that pressure local markets
+- Route intelligence (`best_routes`) for arbitrage after distance costs
+- Achievements + journal export
+- Multiplayer-ready shared `GameWorld` with per-connection `PlayerState`
 
-See [CHANGELOG.md](CHANGELOG.md) for dated release notes.
+See [CHANGELOG.md](CHANGELOG.md) for release notes.
