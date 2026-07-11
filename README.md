@@ -55,6 +55,12 @@ Connect to `ws://localhost:8000/ws`. The server pushes `{ type: "state", data: .
 
 `buy`, `sell`, `travel`, `build`, `upgrade_cargo`, `upgrade_speed`, `take_loan`, `repay_loan`, `reset`.
 
+### Reconnect sessions
+
+Pass a session token on the URL: `ws://localhost:8000/ws?token=<8-64 chars of [A-Za-z0-9_-]>`. The server keeps the player state behind that token for **6 hours of inactivity**, so a dropped connection or page reload resumes the same run. The bundled client generates a token automatically and stores it in `localStorage`. Without a token the session is ephemeral.
+
+All action payloads are validated server-side: `NaN`/`Infinity`/negative quantities and amounts are rejected, buys are capped at the market's available stock, and malformed or non-JSON messages get an `error` reply instead of closing the socket.
+
 ## REST API
 
 | Method | Path | Description |
@@ -126,7 +132,9 @@ pip install -r requirements.txt
 pytest -q
 ```
 
-CI runs pytest on Python 3.11 and 3.12 (see `.github/workflows/ci.yml`).
+The suite covers the seeded engine (determinism, achievements, journal), long-run market dynamics (price sanity, event targeting, route-graph connectivity), every WebSocket action handler including hostile input (NaN/Infinity, over-stock buys, remote building), and end-to-end WebSocket integration including session resume after disconnect.
+
+CI runs pytest on Python 3.11–3.13 and syntax-checks both frontend bundles (see `.github/workflows/ci.yml`).
 
 ## Included systems
 
@@ -141,3 +149,7 @@ CI runs pytest on Python 3.11 and 3.12 (see `.github/workflows/ci.yml`).
 - Multiplayer-ready shared `GameWorld` with per-connection `PlayerState`
 
 See [CHANGELOG.md](CHANGELOG.md) for release notes.
+
+## License
+
+[MIT](LICENSE)

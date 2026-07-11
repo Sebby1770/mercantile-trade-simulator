@@ -22,9 +22,27 @@ const CITY_COLORS = [
 /* ════════════════════════════════════════════════════
    WEBSOCKET
    ════════════════════════════════════════════════════ */
+function sessionToken() {
+  const KEY = 'mercantile-session-token';
+  let token = null;
+  try {
+    token = localStorage.getItem(KEY);
+    if (!token || !/^[A-Za-z0-9_-]{8,64}$/.test(token)) {
+      token = Array.from(crypto.getRandomValues(new Uint8Array(16)),
+        (b) => b.toString(16).padStart(2, '0')).join('');
+      localStorage.setItem(KEY, token);
+    }
+  } catch (_) {
+    // private browsing — play as an ephemeral session
+  }
+  return token;
+}
+
 function connect() {
   const proto = location.protocol === 'https:' ? 'wss' : 'ws';
-  WS = new WebSocket(`${proto}://${location.host}/ws`);
+  const token = sessionToken();
+  const qs = token ? `?token=${token}` : '';
+  WS = new WebSocket(`${proto}://${location.host}/ws${qs}`);
 
   WS.onopen = () => {
     document.getElementById('mkt-status').textContent = 'Connected';

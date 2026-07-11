@@ -2,6 +2,23 @@
 
 All notable changes to this project are documented here.
 
+## Unreleased
+
+### Added
+
+- **Reconnect sessions** — the client stores a session token in `localStorage` and passes it on the WebSocket URL (`/ws?token=…`); the server keeps player state for 6 hours of inactivity, so disconnects and page reloads resume the run instead of starting over.
+- **MIT license** file.
+- 55 additional pytest cases: long-run market dynamics, every action handler under hostile input, and WebSocket integration including session resume.
+- CI matrix extended to Python 3.13 plus `node --check` on both frontend bundles.
+
+### Fixed
+
+- A malformed or non-JSON WebSocket message no longer kills the connection; the server replies with an error and keeps the socket alive.
+- Loan and trade amounts are validated: `NaN`, `Infinity`, negative, zero, and absurdly large values are rejected instead of corrupting player cash.
+- Buying is capped at the market's available stock, closing an exploit where any quantity could be purchased at the current price regardless of supply.
+- Buildings can only be constructed in the city you are currently in, and not while in transit.
+- Closing one browser tab no longer evicts a second tab sharing the same session.
+
 ## 1.1.0 — 2026-07-11
 
 ### Added
