@@ -1,7 +1,9 @@
 """Mercantile — FastAPI WebSocket + REST game server"""
 import asyncio
 import json
+import math
 import os
+import re
 import time
 import uuid
 from contextlib import asynccontextmanager
@@ -24,6 +26,14 @@ from engine import (
 _WORLD_SEED = os.environ.get('MERCANTILE_SEED')
 world = GameWorld(seed=int(_WORLD_SEED) if _WORLD_SEED is not None else None)
 connections: dict[str, tuple[WebSocket, PlayerState]] = {}
+
+# Sessions survive disconnects: the client presents a token (stored in
+# localStorage) and gets its PlayerState back on reconnect. Idle sessions
+# are swept after SESSION_TTL seconds.
+SESSION_TTL = 6 * 60 * 60
+TOKEN_RE = re.compile(r'^[A-Za-z0-9_-]{8,64}$')
+sessions: dict[str, PlayerState] = {}
+session_seen: dict[str, float] = {}
 
 SIM_TOKEN = os.environ.get('SIM_TOKEN', 'dev')
 IS_PRODUCTION = os.environ.get('ENV', '').lower() in {'production', 'prod'}
@@ -64,8 +74,34 @@ async def _game_loop():
         for pid in dead:
             connections.pop(pid, None)
 
+        _sweep_sessions()
+
         elapsed = time.monotonic() - t0
         await asyncio.sleep(max(0.05, 1.5 - elapsed))
+
+
+def _sweep_sessions(now: float | None = None):
+    """Drop sessions idle for longer than SESSION_TTL."""
+    now = time.monotonic() if now is None else now
+    for token, seen in list(session_seen.items()):
+        if now - seen > SESSION_TTL:
+            sessions.pop(token, None)
+            session_seen.pop(token, None)
+
+
+def _resolve_session(token: str | None) -> tuple[PlayerState, bool]:
+    """Return (player, resumed) for a connection token."""
+    if token and TOKEN_RE.match(token) and token in sessions:
+        session_seen[token] = time.monotonic()
+        return sessions[token], True
+
+    player = PlayerState(pid=str(uuid.uuid4())[:8])
+    player.reputation = {cid: 0.0 for cid in CITIES}
+    player.add_log('system', 'Welcome, trader. Your empire begins here.', world.tick)
+    if token and TOKEN_RE.match(token):
+        sessions[token] = player
+        session_seen[token] = time.monotonic()
+    return player, False
 
 
 # ─── REST API ────────────────────────────────────────────────────────────────
@@ -187,11 +223,11 @@ async def api_achievements():
 @app.websocket('/ws')
 async def ws_endpoint(ws: WebSocket):
     await ws.accept()
-    pid = str(uuid.uuid4())[:8]
-    player = PlayerState(pid=pid)
-    player.reputation = {cid: 0.0 for cid in CITIES}
-    player.add_log('system', 'Welcome, trader. Your empire begins here.', world.tick)
-    connections[pid] = (ws, player)
+    token = ws.query_params.get('token')
+    player, resumed = _resolve_session(token)
+    if resumed:
+        player.add_log('system', 'Reconnected — welcome back.', world.tick)
+    connections[player.pid] = (ws, player)
 
     # Send immediate snapshot so UI doesn't wait for first tick
     await ws.send_text(json.dumps({
@@ -202,8 +238,16 @@ async def ws_endpoint(ws: WebSocket):
     try:
         while True:
             raw = await ws.receive_text()
-            msg = json.loads(raw)
-            resp = _handle(msg, player)
+            try:
+                msg = json.loads(raw)
+                if not isinstance(msg, dict):
+                    raise ValueError('message must be an object')
+                resp = _handle(msg, player)
+            except WebSocketDisconnect:
+                raise
+            except Exception:
+                # A malformed message must never kill the connection
+                resp = _err('Invalid request.')
             if resp:
                 await ws.send_text(json.dumps(resp))
     except WebSocketDisconnect:
@@ -211,7 +255,11 @@ async def ws_endpoint(ws: WebSocket):
     except Exception:
         pass
     finally:
-        connections.pop(pid, None)
+        current = connections.get(player.pid)
+        if current and current[0] is ws:
+            connections.pop(player.pid, None)
+        if token and TOKEN_RE.match(token):
+            session_seen[token] = time.monotonic()
 
 
 def _handle(msg: dict, p: PlayerState) -> dict | None:
@@ -239,14 +287,42 @@ def _ok(msg: str) -> dict:
     return {'type': 'ok', 'msg': msg}
 
 
+def _int_qty(value, cap: int = 1_000_000) -> int | None:
+    """Parse a trade quantity; None if invalid (non-numeric, <1, non-finite)."""
+    try:
+        qty = float(value)
+    except (TypeError, ValueError):
+        return None
+    if not math.isfinite(qty):
+        return None
+    qty = int(qty)
+    if qty < 1 or qty > cap:
+        return None
+    return qty
+
+
+def _money(value, cap: float = 1e12) -> float | None:
+    """Parse a money amount; None if invalid (non-numeric, <=0, non-finite)."""
+    try:
+        amount = float(value)
+    except (TypeError, ValueError):
+        return None
+    if not math.isfinite(amount) or amount <= 0 or amount > cap:
+        return None
+    return amount
+
+
 def _buy(msg: dict, p: PlayerState) -> dict:
     if p.travel:
         return _err('Cannot trade while in transit.')
     gid = msg.get('good')
-    qty = int(msg.get('qty', 1))
-    if gid not in GOODS or qty < 1:
+    qty = _int_qty(msg.get('qty', 1))
+    if gid not in GOODS or qty is None:
         return _err('Invalid good or quantity.')
     m = world.markets[p.location][gid]
+    available = int(m.stock)
+    if qty > available:
+        return _err(f'Market only has {available} units of {GOODS[gid]["name"]}.')
     price = m.price * p.buy_modifier(p.location)
     cost = price * qty
     space = p.cargo_max() - p.cargo_used()
@@ -271,8 +347,8 @@ def _sell(msg: dict, p: PlayerState) -> dict:
     if p.travel:
         return _err('Cannot trade while in transit.')
     gid = msg.get('good')
-    qty = int(msg.get('qty', 1))
-    if gid not in GOODS or qty < 1:
+    qty = _int_qty(msg.get('qty', 1))
+    if gid not in GOODS or qty is None:
         return _err('Invalid good or quantity.')
     hold = p.inventory.get(gid)
     if not hold or hold['qty'] < qty:
@@ -314,12 +390,16 @@ def _travel(msg: dict, p: PlayerState) -> dict:
 
 
 def _build(msg: dict, p: PlayerState) -> dict:
+    if p.travel:
+        return _err('Cannot build while in transit.')
     btype = msg.get('building')
     city = msg.get('city', p.location)
     if btype not in BUILDINGS:
         return _err('Unknown building.')
     if city not in CITIES:
         return _err('Unknown city.')
+    if city != p.location:
+        return _err('You must be in a city to build there.')
     blist = p.buildings.get(city, [])
     if btype in blist:
         return _err(f'{BUILDINGS[btype]["name"]} already built here.')
@@ -359,8 +439,8 @@ def _upgrade_speed(p: PlayerState) -> dict:
 
 
 def _take_loan(msg: dict, p: PlayerState) -> dict:
-    amount = float(msg.get('amount', 0))
-    if amount <= 0:
+    amount = _money(msg.get('amount', 0))
+    if amount is None:
         return _err('Invalid amount.')
     max_loan = max(0.0, p.net_worth(world.markets) * 1.5 - p.loan)
     if amount > max_loan:
@@ -372,7 +452,9 @@ def _take_loan(msg: dict, p: PlayerState) -> dict:
 
 
 def _repay_loan(msg: dict, p: PlayerState) -> dict:
-    amount = float(msg.get('amount', 0))
+    amount = _money(msg.get('amount', 0))
+    if amount is None:
+        return _err('Invalid amount.')
     repay = min(amount, p.loan, p.cash)
     if repay <= 0:
         return _err('Nothing to repay.')
