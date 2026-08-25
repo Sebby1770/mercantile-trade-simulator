@@ -7,7 +7,7 @@ import random
 from dataclasses import dataclass, field
 from typing import Optional
 
-VERSION = "1.1.0"
+VERSION = "2.0.0"
 TICK_INTERVAL = 1.5
 HISTORY_LEN = 100
 GOAL = 500_000
@@ -15,6 +15,11 @@ START_CASH = 2_000
 BASE_CARGO = 20
 MILLIONAIRE_THRESHOLD = 100_000
 GLOBE_TROTTER_CITIES = 5
+START_HULL = 100
+START_CREW = 4
+START_MORALE = 72
+REPAIR_COST_PER_HP = 18
+HIRE_COST = 120
 
 # ─── GOODS ──────────────────────────────────────────────────────────────────
 
@@ -112,6 +117,26 @@ ACHIEVEMENTS = {
         name='Event Survivor',
         desc='Remain active during a market crisis.',
     ),
+    'storm_sailor': dict(
+        id='storm_sailor',
+        name='Storm Sailor',
+        desc='Survive a storm at sea.',
+    ),
+    'privateer': dict(
+        id='privateer',
+        name='Privateer',
+        desc='Fight off a pirate boarding.',
+    ),
+    'contractor': dict(
+        id='contractor',
+        name='Bonded Merchant',
+        desc='Complete a delivery contract.',
+    ),
+    'tycoon': dict(
+        id='tycoon',
+        name='Harbor Tycoon',
+        desc=f'Reach the campaign goal of ${GOAL:,}.',
+    ),
 }
 
 # ─── EVENTS ─────────────────────────────────────────────────────────────────
@@ -173,6 +198,124 @@ def format_log_markdown(log: list[dict], n: int | None = None) -> str:
         msg = str(e.get('msg', '')).replace('|', '\\|')
         lines.append(f"| {e.get('day', '')} | {e.get('kind', '')} | {msg} |")
     return '\n'.join(lines) + '\n'
+
+
+def roll_encounter(rng: random.Random, hull: float, crew: int) -> Optional[dict]:
+    """Maybe return a sea encounter while traveling. None = calm crossing."""
+    roll = rng.random()
+    if roll < 0.55:
+        return None
+    if roll < 0.72:
+        dmg = 6 + rng.randint(0, 10)
+        return {
+            'id': 'storm',
+            'title': 'Squall line',
+            'text': 'Black water stacks against the bow. The masts scream.',
+            'choices': [
+                {'id': 'reef', 'label': 'Reef sail', 'hint': f'Hull -{dmg}'},
+                {'id': 'push', 'label': 'Push through', 'hint': 'Faster, risk more hull'},
+            ],
+            'dmg': dmg,
+        }
+    if roll < 0.88:
+        tribute = 80 + rng.randint(0, 140)
+        return {
+            'id': 'pirates',
+            'title': 'Black sails',
+            'text': 'A low corsair cuts across your wake and demands tribute.',
+            'choices': [
+                {'id': 'pay', 'label': f'Pay ${tribute}', 'hint': 'Lose coin, keep hull'},
+                {'id': 'fight', 'label': 'Fight', 'hint': f'Crew {crew} decide it'},
+                {'id': 'flee', 'label': 'Flee', 'hint': 'Hull damage, maybe lose cargo'},
+            ],
+            'tribute': tribute,
+        }
+    return {
+        'id': 'merchant',
+        'title': 'Friendly barque',
+        'text': 'Another captain signals: they will buy a little cargo at a fair premium.',
+        'choices': [
+            {'id': 'trade', 'label': 'Sell a crate', 'hint': '+12% on one good'},
+            {'id': 'wave', 'label': 'Wave and pass', 'hint': 'No change'},
+        ],
+    }
+
+
+def resolve_encounter(
+    encounter: dict,
+    choice: str,
+    *,
+    cash: float,
+    hull: float,
+    crew: int,
+    inventory: dict,
+    rng: random.Random,
+) -> dict:
+    """Apply an encounter choice. Returns deltas + log line (no player mutation)."""
+    kind = encounter.get('id')
+    choice = (choice or '').strip() or (
+        encounter.get('choices') or [{'id': 'wave'}]
+    )[0]['id']
+    hull_d = 0.0
+    cash_d = 0.0
+    morale_d = 0.0
+    lost_good = None
+    log = 'The sea is quiet.'
+    flags: list[str] = []
+
+    if kind == 'storm':
+        dmg = float(encounter.get('dmg') or 8)
+        if choice == 'push':
+            dmg = round(dmg * 1.6)
+            hull_d = -dmg
+            morale_d = -4
+            log = f'You drive into the squall. Hull -{int(dmg)}.'
+        else:
+            hull_d = -dmg
+            log = f'Canvas comes down. The squall hammers the hull (-{int(dmg)}).'
+        flags.append('storm_sailor')
+    elif kind == 'pirates':
+        tribute = float(encounter.get('tribute') or 100)
+        if choice == 'pay':
+            cash_d = -min(cash, tribute)
+            log = f'You pay {abs(cash_d):.0f} in tribute and they veer off.'
+            morale_d = -6
+        elif choice == 'fight':
+            chance = min(0.82, 0.28 + crew * 0.09)
+            if rng.random() < chance:
+                prize = 60 + rng.randint(0, 120)
+                cash_d = prize
+                morale_d = 8
+                log = f'Steel and smoke. The corsair shears away. Salvage ${prize}.'
+                flags.append('privateer')
+            else:
+                hull_d = -(10 + rng.randint(0, 12))
+                morale_d = -10
+                log = 'They board, loot a little, and vanish into fog.'
+                if inventory:
+                    lost_good = rng.choice(list(inventory.keys()))
+        else:
+            hull_d = -(8 + rng.randint(0, 8))
+            log = 'You dump wind and run. Shot grazes the stern.'
+            if inventory and rng.random() < 0.35:
+                lost_good = rng.choice(list(inventory.keys()))
+    elif kind == 'merchant' and choice == 'trade' and inventory:
+        gid = rng.choice(list(inventory.keys()))
+        unit = float(inventory[gid].get('cost') or 20)
+        cash_d = round(unit * 1.12, 2)
+        lost_good = gid
+        log = 'You sell a single crate over the rail at a friendly premium.'
+    elif kind == 'merchant':
+        log = 'You dip flags and keep your heading.'
+
+    return {
+        'hull': hull_d,
+        'cash': cash_d,
+        'morale': morale_d,
+        'lost_good': lost_good,
+        'log': log,
+        'flags': flags,
+    }
 
 
 def format_log_csv(log: list[dict], n: int | None = None) -> str:
@@ -253,6 +396,13 @@ class PlayerState:
     achievements: list = field(default_factory=list)
     visited_cities: list = field(default_factory=list)
     crisis_ticks: int = 0
+    hull: float = START_HULL
+    crew: int = START_CREW
+    morale: float = START_MORALE
+    contracts: list = field(default_factory=list)
+    pending_encounter: Optional[dict] = None
+    crossings: int = 0
+    contracts_done: int = 0
 
     def __post_init__(self):
         if not self.visited_cities:
@@ -315,7 +465,50 @@ class PlayerState:
             newly.append('globe_trotter')
         if self.crisis_ticks >= 1 and self.unlock_achievement('event_survivor', day):
             newly.append('event_survivor')
+        if self.net_worth(markets) >= GOAL and self.unlock_achievement('tycoon', day):
+            newly.append('tycoon')
         return newly
+
+    def apply_encounter_result(self, result: dict, day: int = 0) -> None:
+        self.hull = max(0.0, min(100.0, self.hull + float(result.get('hull') or 0)))
+        self.cash = max(0.0, self.cash + float(result.get('cash') or 0))
+        self.morale = max(0.0, min(100.0, self.morale + float(result.get('morale') or 0)))
+        lost = result.get('lost_good')
+        if lost and lost in self.inventory:
+            hold = self.inventory[lost]
+            hold['qty'] -= 1
+            if hold['qty'] <= 0:
+                del self.inventory[lost]
+        for flag in result.get('flags') or []:
+            self.unlock_achievement(flag, day)
+        if result.get('log'):
+            self.add_log('sea', result['log'], day)
+        self.pending_encounter = None
+
+    def wrecked(self) -> bool:
+        return self.hull <= 0
+
+    def repair(self, hp: int = 20) -> float:
+        hp = max(1, int(hp))
+        missing = int(START_HULL - self.hull)
+        hp = min(hp, missing)
+        if hp <= 0:
+            return 0.0
+        cost = hp * REPAIR_COST_PER_HP
+        if self.cash < cost:
+            raise ValueError('not enough coin to repair')
+        self.cash -= cost
+        self.hull += hp
+        return cost
+
+    def hire_crew(self) -> None:
+        if self.crew >= 12:
+            raise ValueError('no bunks left')
+        if self.cash < HIRE_COST:
+            raise ValueError('cannot afford a hire')
+        self.cash -= HIRE_COST
+        self.crew += 1
+        self.morale = min(100.0, self.morale + 4)
 
     def journal(self, fmt: str = 'markdown', n: int = 40) -> str:
         """Export the captain's log as markdown or csv."""
@@ -340,6 +533,13 @@ class PlayerState:
         self.achievements = []
         self.visited_cities = ['veridian']
         self.crisis_ticks = 0
+        self.hull = START_HULL
+        self.crew = START_CREW
+        self.morale = START_MORALE
+        self.contracts = []
+        self.pending_encounter = None
+        self.crossings = 0
+        self.contracts_done = 0
 
 
 # ─── GAME WORLD ─────────────────────────────────────────────────────────────
@@ -591,6 +791,62 @@ class GameWorld:
         opps.sort(key=lambda x: x['score'], reverse=True)
         return opps[:top_n]
 
+    def issue_contract(self, player: PlayerState) -> Optional[dict]:
+        """Offer a delivery job from the player's current port."""
+        if player.travel or len(player.contracts) >= 2:
+            return None
+        routes = [r for r in ROUTES_RAW if r[0] == player.location or r[1] == player.location]
+        if not routes:
+            return None
+        a, b, dist = self.rng.choice(routes)
+        dest = b if a == player.location else a
+        gid = self.rng.choice(list(GOODS.keys()))
+        qty = 2 + self.rng.randint(0, 4)
+        buy = self.markets[player.location][gid].price
+        reward = round(qty * buy * 0.22 + dist * 18, 2)
+        job = {
+            'id': f'c{self.tick}{self.rng.randint(10, 99)}',
+            'good': gid,
+            'qty': qty,
+            'dest': dest,
+            'destName': CITIES[dest]['name'],
+            'reward': reward,
+            'expires': self.tick + 12 + dist * 2,
+        }
+        player.contracts.append(job)
+        player.add_log(
+            'contract',
+            f'Bond posted: {qty} {GOODS[gid]["name"]} to {job["destName"]} for ${reward:.0f}.',
+            self.tick,
+        )
+        return job
+
+    def complete_contracts(self, player: PlayerState) -> list[dict]:
+        done = []
+        keep = []
+        for job in player.contracts:
+            if self.tick > job['expires']:
+                player.add_log('contract', 'A bond expired unsigned.', self.tick)
+                continue
+            hold = player.inventory.get(job['good'], {}).get('qty', 0)
+            if player.location == job['dest'] and hold >= job['qty']:
+                player.inventory[job['good']]['qty'] -= job['qty']
+                if player.inventory[job['good']]['qty'] <= 0:
+                    del player.inventory[job['good']]
+                player.cash += job['reward']
+                player.contracts_done += 1
+                player.unlock_achievement('contractor', self.tick)
+                player.add_log(
+                    'contract',
+                    f'Delivered {job["qty"]} {GOODS[job["good"]]["name"]} to {job["destName"]} (+${job["reward"]:.0f}).',
+                    self.tick,
+                )
+                done.append(job)
+            else:
+                keep.append(job)
+        player.contracts = keep
+        return done
+
     # ── Main step ────────────────────────────────────────────────────────────
 
     def step(self, players: list[PlayerState] | None = None) -> Optional[EventRecord]:
@@ -611,13 +867,33 @@ class GameWorld:
 
         for p in players:
             if p.travel and self.tick >= p.travel.eta_tick:
-                p.location = p.travel.to
+                dest = p.travel.to
+                enc = roll_encounter(self.rng, p.hull, p.crew)
+                p.location = dest
                 p.travel = None
                 p.mark_visited(p.location)
+                p.crossings += 1
                 p.add_log('travel', f'Arrived at {CITIES[p.location]["name"]}.', self.tick)
+                if enc:
+                    p.pending_encounter = enc
+                    # Auto-resolve with the safest first choice so headless ticks stay playable.
+                    result = resolve_encounter(
+                        enc,
+                        enc['choices'][0]['id'],
+                        cash=p.cash,
+                        hull=p.hull,
+                        crew=p.crew,
+                        inventory=p.inventory,
+                        rng=self.rng,
+                    )
+                    p.apply_encounter_result(result, day=self.tick)
             if p.loan > 0:
                 p.loan *= (1 + p.loan_rate)
             self._tick_buildings(p)
+            self.complete_contracts(p)
+            if (not p.travel) and self.tick % 7 == 0 and self.rng.random() < 0.45:
+                self.issue_contract(p)
+            p.morale = max(0.0, min(100.0, p.morale + (0.4 if p.crew >= 4 else -0.6)))
             p.check_achievements(self.markets, day=self.tick, crisis_active=crisis_active)
 
         return new_ev
@@ -763,6 +1039,14 @@ class GameWorld:
                 'achievements': achievements_out,
                 'unlockedAchievements': list(player.achievements),
                 'log': player.log[-40:],
+                'hull': round(player.hull, 1),
+                'crew': player.crew,
+                'morale': round(player.morale, 1),
+                'contracts': list(player.contracts),
+                'pendingEncounter': player.pending_encounter,
+                'crossings': player.crossings,
+                'contractsDone': player.contracts_done,
+                'wrecked': player.wrecked(),
             },
             'meta': {
                 'goal': GOAL,

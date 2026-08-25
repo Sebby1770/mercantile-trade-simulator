@@ -24,7 +24,7 @@ from engine import (
 
 
 def test_version():
-    assert VERSION == '1.1.0'
+    assert VERSION == '2.0.0'
 
 
 def test_compute_target_price_basic():

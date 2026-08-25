@@ -2,6 +2,23 @@
 
 All notable changes to this project are documented here.
 
+## 2.0.0 — 2026-08-25
+
+A playable captain's game, not just a market terminal.
+
+### Added
+- **Captain's Chart** (`web/`): title voyage, animated sea map, click-to-sail,
+  docked market / hold / yard / bonds / log, storms and pirates on crossing,
+  hull / crew / morale, delivery bonds, win at $500k net, wreck at 0 hull.
+- Offline engine in `web/world.js` so GitHub Pages is a real game with no server.
+- Python engine: hull, crew, morale, sea encounters, contracts, repair/hire,
+  achievements `storm_sailor`, `privateer`, `contractor`, `tycoon`.
+- FastAPI now serves `web/` (falls back to `static/` if needed).
+- GitHub Pages workflow publishing `web/`.
+
+### Changed
+- Version **2.0.0**.
+
 ## 1.1.0 — 2026-07-11
 
 ### Added
