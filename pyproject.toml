@@ -1,7 +1,7 @@
 [project]
 name = "mercantile-trade-simulator"
-version = "1.1.0"
-description = "FastAPI + WebSocket mercantile trade economy simulator"
+version = "2.0.0"
+description = "Captain’s-chart trading game: sail eight ports, weather storms, and hunt arbitrage."
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [

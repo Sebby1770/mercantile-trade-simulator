@@ -389,5 +389,7 @@ def _reset(p: PlayerState) -> dict:
 
 
 # Static files last so /api/* and /ws take precedence
-STATIC_DIR = Path(__file__).parent / 'static'
+STATIC_DIR = Path(__file__).parent / 'web'
+if not STATIC_DIR.is_dir():
+    STATIC_DIR = Path(__file__).parent / 'static'
 app.mount('/', StaticFiles(directory=STATIC_DIR, html=True), name='static')
