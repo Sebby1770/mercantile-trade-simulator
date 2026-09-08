@@ -1,5 +1,16 @@
 # Changelog
 
+## 3.0.0 — The Elderwood Road (2026-09-08)
+
+- Make a first-person 3D medieval valley the default browser game.
+- Add three continuous settlements, twelve furnished enterable houses, nine NPCs, regional trading, satchel upgrades and inn stays.
+- Add a guild campaign, delivery contracts, daily events, local autosave, and validation of saved game data.
+- Populate the valley with oak and pine woods, harvestable plants, wheat, a windmill, a river and bridges, a keep, deer, sheep, rabbits, chickens, birds, and fireflies.
+- Add collision-aware movement, pointer-lock and drag-look controls, touch controls, a map, journal, configurable graphics and audio, and reduced camera motion.
+- Batch static and articulated geometry with instancing; bundle Three.js locally.
+- Preserve Captain’s Chart under `web/chart/`, its saves, the original terminal, and the Python / WebSocket economy.
+- Add Node economy and geometry tests alongside the existing Python checks.
+
 All notable changes to this project are documented here.
 
 ## 2.0.0 — 2026-08-25
