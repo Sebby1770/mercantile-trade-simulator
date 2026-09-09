@@ -1,4 +1,5 @@
 import * as T from '../vendor/three.module.js';
+import {projectedMaterial} from './materials.js';
 export const TOWNS = [
  {id:'eldermere',name:'Eldermere',tag:'THE MARKET TOWN',x:0,z:0,color:0xa15036},
  {id:'mossbrook',name:'Mossbrook',tag:'THE HARVEST HAMLET',x:-100,z:-78,color:0x897744},
@@ -10,9 +11,16 @@ export function heightAt(x,z){const edge=Math.max(0,Math.hypot(x,z)-155)/30;retu
 export function surfaceAt(x,z){if(Math.abs(x-56)<7.6&&(Math.abs(z+55)<3.6||Math.abs(z-32)<3.6)){const bz=Math.abs(z+55)<3.6?-55:32;return heightAt(56,bz)+.55;}return heightAt(x,z);}
 export function seeded(seed=7341){return()=>{seed=(Math.imul(seed,1664525)+1013904223)>>>0;return seed/4294967296;};}
 const random=seeded();
-const boxG=new T.BoxGeometry(1,1,1),sphereG=new T.IcosahedronGeometry(1,1),coneG=new T.ConeGeometry(1,1,7),cylG=new T.CylinderGeometry(1,1,1,8),rockG=new T.DodecahedronGeometry(1,0);
-const mats=new Map();
-function material(color){if(!mats.has(color))mats.set(color,new T.MeshStandardMaterial({color,roughness:.94,flatShading:true}));return mats.get(color);}
+const boxG=new T.BoxGeometry(1,1,1),sphereG=new T.SphereGeometry(1,10,7),coneG=new T.ConeGeometry(1,1,10),cylG=new T.CylinderGeometry(1,1,1,8),rockG=new T.DodecahedronGeometry(1,0);
+const mats=new Map();let worldTextures={};const windTime={value:0};
+function material(color){if(!mats.has(color)){let m;
+ const woodColors=[0x543b2b,0x987046,0x665038,0x745431,0xb39565,0x806b42];
+ const stoneColors=[0x8b9085,0x92958a,0x606960,0x8f8870,0xa79c7c,0xb5a17a,0xb4a888,0xc0b490,0x9e987d];
+ if(woodColors.includes(color)&&worldTextures.wood)m=projectedMaterial(0xe5d3b8,worldTextures.wood,.35);
+ else if(stoneColors.includes(color)&&worldTextures.stone)m=projectedMaterial(0xd4d4c9,worldTextures.stone,.5);
+ else m=new T.MeshStandardMaterial({color,roughness:.88});
+ if([0x496437,0x658047,0x7a8c47,0x304f3d,0x416248,0x4c7050].includes(color)){m.roughness=1;m.onBeforeCompile=shader=>{shader.uniforms.realmWindTime=windTime;shader.vertexShader=shader.vertexShader.replace('#include <common>','#include <common>\nuniform float realmWindTime;');shader.vertexShader=shader.vertexShader.replace('#include <begin_vertex>','#include <begin_vertex>\ntransformed.x+=sin(realmWindTime*.7+position.y*2.)*.022*max(0.,position.y+1.);');};}
+ mats.set(color,m);}return mats.get(color);}
 function piece(parent,geo,color,x,y,z,sx=1,sy=1,sz=1){const m=new T.Mesh(geo,typeof color==='number'?material(color):color);m.position.set(x,y,z);m.scale.set(sx,sy,sz);m.castShadow=true;m.receiveShadow=true;parent.add(m);return m;}
 const box=(p,c,x,y,z,w,h,d)=>piece(p,boxG,c,x,y,z,w,h,d);
 const sphere=(p,c,x,y,z,w,h=w,d=w)=>piece(p,sphereG,c,x,y,z,w,h,d);
@@ -21,23 +29,23 @@ function beam(p,c,a,b,r=.09){const d=new T.Vector3(...b).sub(new T.Vector3(...a)
 const wood=0x543b2b,lightwood=0x987046,plaster=0xe1d2a5,stone=0x8b9085;
 export function blocksAt(x,z,colliders,r=.32){if(Math.abs(x)>WORLD_LIMIT||Math.abs(z)>WORLD_LIMIT)return true;if(Math.abs(x-56)<5.8+r&&Math.abs(z+55)>4-r&&Math.abs(z-32)>4-r)return true;return colliders.some(c=>x>c.x1-r&&x<c.x2+r&&z>c.z1-r&&z<c.z2+r);}
 export function moveWithCollision(position,dx,dz,colliders,r=.32){const n=Math.max(1,Math.ceil(Math.hypot(dx,dz)/.18));for(let i=0;i<n;i++){if(!blocksAt(position.x+dx/n,position.z,colliders,r))position.x+=dx/n;if(!blocksAt(position.x,position.z+dz/n,colliders,r))position.z+=dz/n;}return position;}
-export function createWorld(scene){
+export function createWorld(scene,{textures={}}={}){worldTextures=textures;mats.clear();
  const root=new T.Group();scene.add(root);const colliders=[],houses=[],npcs=[],animals=[],gatherables=[],animated=[],fireflies=[];
  function obstacle(x,z,w,d){colliders.push({x1:x-w/2,x2:x+w/2,z1:z-d/2,z2:z+d/2});}
  function placed(x,z,yaw=0){const g=new T.Group();g.position.set(x,heightAt(x,z),z);g.rotation.y=yaw;root.add(g);return g;}
  function localObstacle(g,x,z,w,d){const v=new T.Vector3(x,0,z).applyAxisAngle(new T.Vector3(0,1,0),g.rotation.y).add(g.position);const swap=Math.abs(Math.sin(g.rotation.y))>.5;obstacle(v.x,v.z,swap?d:w,swap?w:d);}
  // The ground is a real undulating mesh; paths and feet share the same height function.
- const groundG=new T.PlaneGeometry(470,470,235,94);groundG.rotateX(-Math.PI/2);const a=groundG.attributes.position,colors=[];for(let i=0;i<a.count;i++){const x=a.getX(i),z=a.getZ(i);a.setY(i,Math.abs(x-56)<6.5?-1.6:heightAt(x,z));const c=new T.Color([0x657b3e,0x6a8042,0x718849,0x62783d][Math.floor(random()*4)]);colors.push(c.r,c.g,c.b);}groundG.setAttribute('color',new T.Float32BufferAttribute(colors,3));groundG.computeVertexNormals();const ground=new T.Mesh(groundG,new T.MeshStandardMaterial({vertexColors:true,roughness:1,flatShading:true}));ground.receiveShadow=true;root.add(ground);
+ const groundG=new T.PlaneGeometry(470,470,235,94);groundG.rotateX(-Math.PI/2);const a=groundG.attributes.position,colors=[];for(let i=0;i<a.count;i++){const x=a.getX(i),z=a.getZ(i);a.setY(i,Math.abs(x-56)<6.5?-1.6:heightAt(x,z));const c=new T.Color([0x657b3e,0x6a8042,0x718849,0x62783d][Math.floor(random()*4)]);colors.push(c.r,c.g,c.b);}groundG.setAttribute('color',new T.Float32BufferAttribute(colors,3));groundG.computeVertexNormals();const ground=new T.Mesh(groundG,textures.grass?projectedMaterial(0xcad6aa,textures.grass,.28):new T.MeshStandardMaterial({vertexColors:true,roughness:1}));ground.receiveShadow=true;root.add(ground);
  function road(points,width=4.4,color=0xb5a17a){for(let i=1;i<points.length;i++){const [ax,az]=points[i-1],[bx,bz]=points[i],length=Math.hypot(bx-ax,bz-az);const steps=Math.ceil(length/2);for(let j=0;j<steps;j++){const x=ax+(bx-ax)*(j+.5)/steps,z=az+(bz-az)*(j+.5)/steps;const m=box(root,color,x,heightAt(x,z)+.015,z,width,.055,length/steps+.15);m.rotation.y=Math.atan2(bx-ax,bz-az);m.castShadow=false;}}}
  for(const r of ROADS)road(r);
  // River, banks, and two traversable bridges.
- const water=new T.Mesh(new T.PlaneGeometry(11,450,1,1),new T.MeshStandardMaterial({color:0x5c9e9b,metalness:.34,roughness:.24,transparent:true,opacity:.88}));water.rotation.x=-Math.PI/2;water.position.set(56,-.07,0);root.add(water);
+ const water=new T.Mesh(new T.PlaneGeometry(11,450,1,1),new T.MeshStandardMaterial({color:0x5c9e9b,metalness:.34,roughness:.24,transparent:true,opacity:.88}));water.rotation.x=-Math.PI/2;water.position.set(56,-.07,0);if(!textures.grass)root.add(water);
  for(let z=-200;z<205;z+=4){for(const x of [49.8,62.2])sphere(root,0x949885,x,heightAt(x,z)-.1,z,1+random(),.35,.9+random());}
  for(const bz of [-55,32]){const g=placed(56,bz);for(let x=-7;x<=7;x+=.5)box(g,lightwood,x,.4,0,.47,.3,7.5);for(const sz of [-3.65,3.65]){for(let x=-7;x<=7;x+=3.5)box(g,wood,x,1,sz,.16,1.8,.16);box(g,lightwood,0,1.6,sz,14,.15,.15);} }
  const rippleG=new T.TorusGeometry(.8,.014,3,20);for(let i=0;i<30;i++){const m=piece(root, rippleG,0xb9d3b1,52+random()*8,.015,-180+random()*360,1,1,1);m.rotation.x=-Math.PI/2;m.scale.setScalar(.6+random());m.userData.dynamic=true;animated.push({type:'ripple',mesh:m,phase:random()*6});}
  // Distant mountain silhouettes and cloud banks.
  for(let i=0;i<54;i++){const theta=i/54*Math.PI*2,r=230+random()*90,x=Math.cos(theta)*r,z=Math.sin(theta)*r;piece(root,coneG,[0x748a78,0x7d9181,0x6b8173][i%3],x,17,z,28+random()*37,45+random()*60,28+random()*37);}
- const cloudMat=new T.MeshStandardMaterial({color:0xf2f0d8,roughness:1,flatShading:true});for(let i=0;i<18;i++){const g=placed(-200+random()*400,-200+random()*400);g.position.y=46+random()*20;for(let j=0;j<5;j++)sphere(g,cloudMat,j*6,random()*1.5,random()*3,9,2.3,5);}
+ const cloudMat=new T.MeshStandardMaterial({color:0xf2f0d8,roughness:1,flatShading:true});for(let i=0;i<(textures.grass?0:18);i++){const g=placed(-200+random()*400,-200+random()*400);g.position.y=46+random()*20;for(let j=0;j<5;j++)sphere(g,cloudMat,j*6,random()*1.5,random()*3,9,2.3,5);}
  function tree(x,z,s=1,pine=false){const g=placed(x,z,random()*6);cylinder(g,0x665038,0,2*s,0,.22*s,4*s);if(pine){for(let k=0;k<3;k++)piece(g,coneG,[0x304f3d,0x416248,0x4c7050][k],0,(3+k*1.3)*s,0,(2.5-k*.45)*s,3.8*s,(2.5-k*.45)*s);}else{sphere(g,0x496437,0,4.9*s,0,2.7*s,2.8*s,2.7*s);sphere(g,0x658047,-1.6*s,4.1*s,.3*s,1.9*s,2.1*s,2*s);sphere(g,0x7a8c47,1.3*s,4.7*s,.5*s,1.8*s,2*s,1.8*s);}if(s>.6)obstacle(x,z,.5*s,.5*s);}
  function nearRoad(x,z,pad=0){for(const line of ROADS)for(let i=1;i<line.length;i++){const [ax,az]=line[i-1],[bx,bz]=line[i],t=Math.max(0,Math.min(1,((x-ax)*(bx-ax)+(z-az)*(bz-az))/((bx-ax)**2+(bz-az)**2)));if(Math.hypot(x-ax-(bx-ax)*t,z-az-(bz-az)*t)<5+pad)return true;}return false;}
  for(let i=0;i<610;i++){const x=(random()-.5)*400,z=(random()-.5)*400;if(Math.abs(x-56)<10||TOWNS.some(t=>Math.hypot(x-t.x,z-t.z)<34)||nearRoad(x,z))continue;tree(x,z,.7+random()*.8,z<-105||random()<.24);}
@@ -60,7 +68,10 @@ export function createWorld(scene){
   for(const z of [-3.64,3.64]){box(g,wood,0,4.45,z,8.25,.23,.2);box(g,wood,0,.45,z,8.25,.2,.2);}
   for(const x of [-4.13,4.13]){box(g,wood,x,2.2,0,.16,4.5,.17);box(g,wood,x,4.4,0,.18,.22,7.4);for(const z of [-1.8,1.8]){box(g,wood,x,2.45,z,.2,1.6,1.25);box(g,glow,x*1.015,2.45,z,.12,1.3,1);box(g,wood,x*1.032,2.45,z,.12,.07,1);box(g,wood,x*1.032,2.45,z,.12,1.3,.07);}}
   for(const x of [-2.5,2.5]){box(g,wood,x,2.5,3.66,1.15,1.6,.15);box(g,glow,x,2.5,3.76,.92,1.3,.08);box(g,wood,x,2.5,3.82,.065,1.4,.06);box(g,wood,x,2.5,3.82,1,.065,.06);}
-  roof(g,9.1,8,t.color);box(g,stone,2.6,6,-1.4,.7,3,.8);box(g,0x676f63,2.6,7.52,-1.4,.9,.2,1);
+  roof(g,9.1,8,t.color);
+  for(const side of [-1,1])for(let row=0;row<9;row++){const xx=side*(.2+row*.48),yy=6.94-row*.267;const tile=box(g,t.color,xx,yy,0,.52,.08,8.08);tile.rotation.z=-side*.5;}
+  for(const zz of [-3.6,3.6])for(let row=0;row<2;row++)for(let n=0;n<8;n++){const x=-3.55+n+(row%2)*.18;if(zz>0&&Math.abs(x)<1.1)continue;box(g,stone,x,.2+row*.24,zz,.94,.23,.24);}
+  box(g,stone,2.6,6,-1.4,.7,3,.8);box(g,0x676f63,2.6,7.52,-1.4,.9,.2,1);
   const door=new T.Group();door.position.set(-.91,0,3.5);door.userData.dynamic=true;g.add(door);box(door,0x745431,.86,1.42,0,1.72,2.65,.12);for(const yy of [.45,2.2])box(door,wood,.86,yy,.08,1.72,.12,.07);sphere(door,0xcfb565,1.53,1.3,.11,.065);
   const dc=new T.Vector3(0,0,3.5).applyAxisAngle(new T.Vector3(0,1,0),yaw).add(g.position);const doorCollider={x1:dc.x-(yaw===0?.96:.13),x2:dc.x+(yaw===0?.96:.13),z1:dc.z-(yaw===0?.13:.96),z2:dc.z+(yaw===0?.13:.96)};colliders.push(doorCollider);
   const entry=new T.Vector3(0,0,5.3).applyAxisAngle(new T.Vector3(0,1,0),yaw).add(g.position);
@@ -144,7 +155,7 @@ export function createWorld(scene){
    for(const a of animals){const g=a.group,d=Math.hypot(player.x-g.position.x,player.z-g.position.z);const flee=d<5&&['deer','rabbit'].includes(a.kind);let heading=a.heading+Math.sin(time*.17+a.phase)*.7;const homeDist=Math.hypot(g.position.x-a.homeX,g.position.z-a.homeZ);if(flee)heading=Math.atan2(g.position.x-player.x,g.position.z-player.z);else if(homeDist>10)heading=Math.atan2(a.homeX-g.position.x,a.homeZ-g.position.z);const moving=flee||Math.sin(time*.3+a.phase)>.1;const speed=flee?3.8:a.speed;let dx=Math.sin(heading)*dt*speed,dz=Math.cos(heading)*dt*speed;if(moving){moveWithCollision(g.position,dx,dz,colliders,.2);g.rotation.y=heading;}g.position.y=surfaceAt(g.position.x,g.position.z)+(a.kind==='rabbit'&&moving?Math.abs(Math.sin(time*9))* .14:0);a.legs.forEach((l,i)=>l.rotation.x=moving?Math.sin(time*speed*8+i%2*Math.PI)*.33:0);}
    for(const a of animated){if(a.type==='mill')a.mesh.rotation.z+=dt*.19;else if(a.type==='ripple'){a.mesh.scale.setScalar(.8+Math.sin(time*.5+a.phase)*.3);a.mesh.position.y=.035;}else{const th=time*.035+a.phase;a.mesh.position.set(Math.cos(th)*62,20+Math.sin(time*.2+a.phase)*3,Math.sin(th)*55-35);a.mesh.rotation.y=-th;a.left.rotation.z=Math.sin(time*6+a.phase)*.35;a.right.rotation.z=-a.left.rotation.z;}}
    for(let i=0;i<fireflies.length;i++){fireflies[i].position.y=1.7+Math.sin(time*.5+i)*.7;}
-   glow.emissiveIntensity=.4+(1-daylight)*1.2;daylightCache=daylight;updateDynamic();
+   windTime.value=time;glow.emissiveIntensity=.4+(1-daylight)*1.2;daylightCache=daylight;updateDynamic();
   }
  };return world;
 }

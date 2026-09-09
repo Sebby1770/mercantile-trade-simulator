@@ -8,16 +8,22 @@
 </head>
 <body>
   <canvas id="world" aria-label="The three-dimensional Elderwood valley"></canvas>
+  <div id="damage-overlay" aria-hidden="true"></div>
   <div id="vignette" aria-hidden="true"></div>
   <section id="menu" class="screen menu">
-    <header class="menu-top"><span class="seal">M</span><span>A MERCHANT’S TALE</span><span class="edition">THE ELDERWOOD ROAD · III</span></header>
-    <div class="menu-content"><p class="eyebrow">AN OPEN-WORLD TRADING ADVENTURE</p><h1>Mercantile<span>The Elderwood Road</span></h1><div class="rule"></div><p class="intro">A few coins. An open road.<br>A whole valley of possibility.</p><div class="menu-actions"><button id="play" class="primary" disabled>Preparing the valley… <span>↗</span></button><button id="new-game" class="text-button" hidden>Begin a new tale</button></div><p class="control-intro"><kbd>W A S D</kbd> walk <span>·</span> mouse to look <span>·</span> <kbd>E</kbd> interact</p></div>
-    <footer class="menu-footer"><span><i class="live-dot"></i> THREE SETTLEMENTS. ONE LIVING WORLD.</span><a href="chart/">Captain’s Chart <span>↗</span></a><button id="menu-settings" class="text-button">Settings</button></footer>
+    <header class="menu-top"><span class="seal">M</span><span>A MERCHANT’S TALE</span><span class="edition">STEEL &amp; SORCERY · IV</span></header>
+    <div class="menu-content"><p class="eyebrow">A FANTASY ADVENTURE IN ELDERWOOD</p><h1>Mercantile<span>The Elderwood Road</span></h1><div class="rule"></div><p class="intro">Choose your path. Wield your power.<br>Make your name in the valley.</p><div class="menu-actions"><button id="play" class="primary" disabled>Preparing the valley… <span>↗</span></button><button id="new-game" class="text-button" hidden>Begin a new tale</button></div><p class="control-intro"><kbd>W A S D</kbd> walk <span>·</span> mouse to look <span>·</span> <kbd>E</kbd> interact</p></div>
+    <footer class="menu-footer"><span><i class="live-dot"></i> FOUR HEROES. ONE LIVING WORLD.</span><a href="chart/">Captain’s Chart <span>↗</span></a><button id="menu-settings" class="text-button">Settings</button></footer>
   </section>
   <main id="hud" hidden>
     <header class="hud-top"><div class="location"><span class="crest">✦</span><div><span class="eyebrow" id="region">THE GREEN VALLEY</span><h2 id="location">Eldermere</h2></div></div><div class="compass"><span id="bearing">N</span><div>· · · ◇ · · ·</div></div><div class="resources"><span class="coin-icon">◈</span><strong id="coins">120</strong><span class="resource-divider"></span><span id="day">Day 1</span><span id="time">08:00</span></div></header>
     <aside class="quest-tracker"><span class="eyebrow">A MERCHANT’S BEGINNING</span><p id="objective">Speak to Rowan at the market.</p><small id="objective-detail">Follow the gold diamond.</small></aside>
     <div id="marker" class="world-marker" hidden><span>◇</span><small></small></div>
+
+    <div id="enemy-target" hidden><span id="enemy-name"></span><div class="enemy-track"><i id="enemy-health"></i></div></div>
+    <section class="rpg-vitals" aria-label="Character health and mana"><div class="vitals-heading"><span id="hero-name">Adventurer</span><span>✦</span></div><div class="vital"><div class="vital-label"><span>HEALTH</span><span id="health-value">125 / 125</span></div><div class="vital-track"><i id="health-fill"></i></div></div><div class="vital"><div class="vital-label"><span>MANA</span><span id="mana-value">85 / 85</span></div><div class="vital-track"><i id="mana-fill"></i></div></div><small id="active-effects"></small></section>
+    <section class="combat-dock" aria-label="Weapons and spells"><div class="weapon-readout"><span id="weapon-name">Wayfarer’s sword</span><small id="weapon-ammo">R to guard</small></div><div class="spell-hotbar"><button id="spell-0" data-cast="0"><kbd>1</kbd><span class="hotbar-glyph">✧</span><span class="hotbar-name">Spell</span><span class="hotbar-cost">Mana</span></button><button id="spell-1" data-cast="1"><kbd>2</kbd><span class="hotbar-glyph">✧</span><span class="hotbar-name">Spell</span><span class="hotbar-cost">Mana</span></button><button id="spell-2" data-cast="2"><kbd>3</kbd><span class="hotbar-glyph">✧</span><span class="hotbar-name">Spell</span><span class="hotbar-cost">Mana</span></button><button id="spell-3" data-cast="3"><kbd>4</kbd><span class="hotbar-glyph">✧</span><span class="hotbar-name">Spell</span><span class="hotbar-cost">Mana</span></button></div><div class="combat-buttons"><button data-panel="armory"><kbd>Tab</kbd> Weapons</button><button data-panel="spellbook"><kbd>B</kbd> Spells</button><button data-panel="hero"><kbd>C</kbd> Hero</button><button id="potion-button"><kbd>F</kbd> Draught <span id="potion-count">3</span></button></div></section>
+    <div class="touch-combat"><button id="touch-attack">Attack</button><button id="touch-guard">Guard</button></div>
     <div id="crosshair" aria-hidden="true">·</div>
     <button id="interact" class="interaction" hidden><kbd>E</kbd><span id="interact-text">Speak</span></button>
     <div id="toast" role="status" aria-live="polite"></div>
