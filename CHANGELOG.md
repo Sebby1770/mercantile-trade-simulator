@@ -1,5 +1,27 @@
 # Changelog
 
+## 4.0.0 — Steel & Sorcery (2026-09-09)
+
+- Add playable Human, Elf, Wizard and Ogre characters with distinct stats, equipment, spell access and a 3D selection preview.
+- Add thirteen purchasable weapons, visible held equipment, ammunition, healing draughts, guarding and twenty character levels.
+- Add twelve spells with a four-slot hotbar, mana costs, cooldowns and distinct effects, including chain lightning, Starfall, blink, blizzard and a summoned wisp.
+- Add five wilderness encounters, five enemy types, safe settlements, combat rewards, daily respawns and recovery on defeat.
+- Upgrade ground, stone and wood textures, vegetation, sky, river, lighting, bloom, character models and combat effects.
+- Add character, equipment and spellbook menus, combat HUD, enemy map markers, keyboard shortcuts and touch combat controls.
+- Migrate existing Elderwood saves without resetting commerce or quests; preserve Captain’s Chart and the Python economy.
+- Add automated character, spell, collision, resource, reward, save, geometry and shader-source checks. Interactive browser and WebGL verification remain separate.
+
+## 3.0.0 — The Elderwood Road (2026-09-08)
+
+- Make a first-person 3D medieval valley the default browser game.
+- Add three continuous settlements, twelve furnished enterable houses, nine NPCs, regional trading, satchel upgrades and inn stays.
+- Add a guild campaign, delivery contracts, daily events, local autosave, and validation of saved game data.
+- Populate the valley with oak and pine woods, harvestable plants, wheat, a windmill, a river and bridges, a keep, deer, sheep, rabbits, chickens, birds, and fireflies.
+- Add collision-aware movement, pointer-lock and drag-look controls, touch controls, a map, journal, configurable graphics and audio, and reduced camera motion.
+- Batch static and articulated geometry with instancing; bundle Three.js locally.
+- Preserve Captain’s Chart under `web/chart/`, its saves, the original terminal, and the Python / WebSocket economy.
+- Add Node economy and geometry tests alongside the existing Python checks.
+
 All notable changes to this project are documented here.
 
 ## 2.0.0 — 2026-08-25

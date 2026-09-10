@@ -1,0 +1,29 @@
+GRASS
+Use case: stylized-concept
+Asset type: seamless tileable 3D fantasy RPG game material, diffuse albedo texture, square 1024x1024 pixels.
+Primary request: lush mossy temperate forest meadow grass floor, densely covered by fine short grass blades and soft moss with subtle tiny clover scattered naturally.
+Style/medium: high-quality hand-painted naturalistic fantasy RPG material; fine believable brush detail, cohesive and understated.
+Composition/framing: orthographic direct top-down surface only, full bleed, uniform density and scale across the image. Perfectly seamless matching opposite edges for endless tiling horizontally and vertically.
+Lighting/mood: flat even illumination, pure albedo with no baked shadows or directional lighting.
+Color palette: fine muted emerald, olive and natural forest greens with subtle varied hues.
+Constraints: no perspective, no horizon, no large identifiable objects, no flowers, no stones, no border, no labels, no text, no watermark.
+
+COBBLESTONE
+Use case: stylized-concept
+Asset type: seamless tileable 3D fantasy RPG game material, diffuse albedo texture, square 1024x1024 pixels.
+Primary request: weathered medieval stone cobblestone paving, irregular small grey-brown stones with fine moss growing in the narrow joints. Naturally fitted irregular paving stones, softly worn edges and subtle stone surface detail.
+Style/medium: high-quality hand-painted naturalistic fantasy RPG material; fine believable brush detail, cohesive and understated.
+Composition/framing: orthographic direct top-down surface only, full bleed, uniform density and scale across the image. Perfectly seamless matching opposite edges for endless tiling horizontally and vertically.
+Lighting/mood: flat even illumination, pure albedo with no baked shadows or directional lighting.
+Color palette: muted grey-brown stones and subtle olive moss in joints.
+Constraints: no perspective, no horizon, no large identifiable objects, no plants beyond joint moss, no border, no labels, no text, no watermark.
+
+OAK
+Use case: stylized-concept
+Asset type: seamless tileable 3D fantasy RPG game material, diffuse albedo texture, square 1024x1024 pixels.
+Primary request: old warm oak timber planks, long vertical wood grain, subtle small dark nails and narrow plank gaps. Weathered yet intact oak with restrained grain, natural muted variation and occasional subtle knots.
+Style/medium: high-quality hand-painted naturalistic fantasy RPG material; fine believable brush detail, cohesive and understated.
+Composition/framing: orthographic direct top-down surface only, vertical parallel planks, full bleed, uniform scale across the image. Perfectly seamless matching opposite edges for endless tiling horizontally and vertically.
+Lighting/mood: flat even illumination, pure albedo with no baked shadows or directional lighting.
+Color palette: rich warm natural oak brown, muted walnut and umber undertones, not orange.
+Constraints: no perspective, no horizon, no large identifiable objects, no border, no labels, no text, no watermark.
