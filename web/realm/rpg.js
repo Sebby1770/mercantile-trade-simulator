@@ -21,17 +21,17 @@ export const WEAPONS = {
  wand: {name:'Starseeker wand',family:'Wand',damage:13,range:36,cooldown:.3,price:95,kind:'magic',speed:38,mana:2,color:0xc4a2ff,description:'Rapid arcane darts from a silver-tipped wand.'}
 };
 export const SPELLS = {
- fireball:{name:'Fireball',school:'Ember',glyph:'☀',cost:18,cooldown:2.5,damage:34,range:42,radius:3.8,speed:22,color:0xff8b43,description:'Hurl an explosive flame that bursts across a group of enemies.'},
- frost:{name:'Frost lance',school:'Winter',glyph:'❄',cost:14,cooldown:2,damage:27,range:45,speed:34,freeze:3,color:0x92ddff,description:'Pierce the air with ice and freeze a foe in place.'},
- lightning:{name:'Chain lightning',school:'Storm',glyph:'ϟ',cost:27,cooldown:4,damage:31,range:25,color:0xb5c9ff,description:'A bolt of lightning leaps between up to four nearby enemies.'},
- meteor:{name:'Starfall',school:'Celestial',glyph:'✷',cost:45,cooldown:10,damage:74,range:27,radius:6,color:0xffb276,description:'Call a blazing meteor down onto the ground ahead of you.'},
+ fireball:{name:'Fireball',school:'Ember',glyph:'☀',cost:18,cooldown:2.5,damage:34,range:42,radius:3.8,speed:22,color:0xff8b43,description:'Hurl a blazing orb that explodes and burns enemies. Shatters chilled targets for 65% bonus impact damage.'},
+ frost:{name:'Frost lance',school:'Winter',glyph:'❄',cost:14,cooldown:2,damage:27,range:45,speed:34,freeze:3,color:0x92ddff,description:'Launch an ice lance that freezes a foe. Follow with fire or lightning for an elemental combination.'},
+ lightning:{name:'Chain lightning',school:'Storm',glyph:'ϟ',cost:27,cooldown:4,damage:31,range:25,color:0xb5c9ff,description:'Forked lightning leaps between four enemies. Chilled targets conduct 40% more damage.'},
+ meteor:{name:'Starfall',school:'Celestial',glyph:'✷',cost:45,cooldown:10,damage:74,range:27,radius:6,color:0xffb276,description:'Call a blazing meteor into the targeting circle, scattering and burning nearby enemies.'},
  heal:{name:'Restoration',school:'Life',glyph:'✚',cost:24,cooldown:7,healing:48,color:0x89efb7,description:'Mend your wounds in a spiral of luminous leaves.'},
  ward:{name:'Arcane ward',school:'Protection',glyph:'◇',cost:22,cooldown:12,duration:9,shield:75,color:0x9baeff,description:'A translucent barrier absorbs damage for nine seconds.'},
  blink:{name:'Blink step',school:'Space',glyph:'»',cost:20,cooldown:5,range:9,color:0xcdb1ff,description:'Flash forward along a clear path. Walls and rivers still stop you.'},
  roots:{name:'Grasping roots',school:'Nature',glyph:'♧',cost:23,cooldown:7,damage:14,duration:5,radius:7,color:0xaad88b,description:'Roots erupt around you and bind nearby enemies.'},
  nova:{name:'Arcane nova',school:'Force',glyph:'✧',cost:30,cooldown:7,damage:40,radius:7,color:0xc5a0ff,description:'Release a ring of force that damages and pushes enemies away.'},
  wisp:{name:'Spirit companion',school:'Summoning',glyph:'◉',cost:35,cooldown:24,duration:18,damage:16,range:20,color:0x99f4e2,description:'Summon a friendly wisp that follows you and fires at your foes.'},
- blizzard:{name:'Winter’s veil',school:'Winter',glyph:'❅',cost:36,cooldown:12,duration:7,damage:9,range:20,radius:6,color:0xbbebff,description:'Create a lingering snowstorm that damages and slows enemies.'},
+ blizzard:{name:'Winter’s veil',school:'Winter',glyph:'❅',cost:36,cooldown:12,duration:7,damage:9,range:20,radius:6,color:0xbbebff,description:'Summon a swirling snowstorm that damages, chills and slows enemies, preparing elemental combinations.'},
  haste:{name:'Windwalk',school:'Wind',glyph:'≋',cost:25,cooldown:18,duration:11,color:0xc3eab3,description:'Ride a tailwind to move much faster for eleven seconds.'}
 };
 export const ENEMY_DEFS={wolf:{name:'Briar wolf',health:52,damage:9,speed:2.8,xp:22,coin:9},goblin:{name:'Road goblin',health:72,damage:12,speed:2.2,xp:34,coin:15},skeleton:{name:'Hollow knight',health:92,damage:15,speed:1.9,xp:46,coin:21},wraith:{name:'Rift wraith',health:110,damage:17,speed:2.3,xp:58,coin:27},sentinel:{name:'Runestone guardian',health:260,damage:25,speed:1.5,xp:130,coin:75}};

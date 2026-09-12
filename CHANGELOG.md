@@ -1,5 +1,14 @@
 # Changelog
 
+## 5.0.0 — Arcane Awakening (2026-09-11)
+
+- Give all twelve spells distinct casting, projectile, impact and persistent effects, with a bounded particle buffer and reduced particle counts in Low quality.
+- Add Shatter and Conduction elemental combinations, burning, chill, ice-specific immobilization and visible enemy statuses.
+- Add two safe training targets and an Eldermere focus stone that restores mana and readies spells without granting rewards.
+- Add enemy attack windups, interruptible strikes, guard feedback, floating damage numbers and synthesised combat sounds.
+- Add spell selection without casting and ground previews for area spells, including a touch selection button.
+- Preserve existing saves and add regression coverage for elemental timing, practice, interrupts, geometry and effect cleanup.
+
 ## 4.0.0 — Steel & Sorcery (2026-09-09)
 
 - Add playable Human, Elf, Wizard and Ogre characters with distinct stats, equipment, spell access and a 3D selection preview.

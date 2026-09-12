@@ -2,7 +2,7 @@
 
 A first-person **3D medieval fantasy adventure** through a continuous, living valley. Choose a Human, Elf, Wizard or Ogre, explore the roads between Eldermere, Mossbrook and Ironhold, trade in furnished houses, gather wild plants, and face the creatures beyond the settlements.
 
-**Version 4.0.0 — Steel & Sorcery.** Inspired by the first-person interaction in `vibe-check-9000`, with an outdoor world, regional economies, a merchant campaign, and character progression.
+**Version 5.0.0 — Arcane Awakening.** Inspired by the first-person interaction in `vibe-check-9000`, with an outdoor world, regional economies, a merchant campaign, and character progression.
 
 ## Play locally
 
@@ -14,7 +14,16 @@ Open [localhost:8000](http://localhost:8000) and choose **Enter the valley**. Th
 
 Alternatively, `npm run dev` serves the game at [localhost:4173](http://localhost:4173).
 
-## Steel & Sorcery
+## Arcane Awakening
+
+- Distinct spell visuals: fiery projectile trails, crystalline ice lances, branching lightning, falling meteors and shockwaves, rising healing spirals, patterned wards, blink portals, grasping vines, force novas, spirit trails and swirling snowstorms.
+- Elemental combinations: ice prepares **Shatter** (fire, 65% bonus impact damage) or **Conduction** (lightning, 40% bonus damage). Fire burns over time; ice extinguishes burning. Rooting and weapon stuns remain separate from ice.
+- Two reusable training targets beside the southern Eldermere road. At the blue focus stone southwest of the plaza, press **E** to restore mana and ready spells. Training grants no coins or experience.
+- Press **Z** to select a hotbar spell without casting, then **Q** to cast it. Starfall and Winter’s veil display a ground targeting circle. The same selection control is available on the touch HUD.
+- Enemies wind up their attacks with a visible warning, giving time to guard, move away or interrupt them with magic. Damage numbers, status labels, hit flashes, guard feedback and synthesised spell sounds make combat easier to read.
+- Particle counts and temporary effects are capped, Low quality reduces particles, and menus pause combat effects and cancel active combat sounds.
+
+## Characters and equipment
 
 - **Four playable characters** with a rotating 3D preview: Human Ironbound, Elf Moonwood Ranger, Wizard Astral Scholar, and Ogre Stoneborn. Each has distinct health, mana, movement, combat bonuses, starting equipment, and spell access. Change character in a settlement without resetting your trading journey.
 - **Thirteen weapons**: sword, dagger, axe, mace, greatsword, spear, warhammer, longbow, crossbow, chakram, Ember Staff, Frost Staff, and wand. Equip owned weapons anywhere; buy equipment, ammunition and healing draughts from Rowan or Gareth. Weapons have different reach, speed, damage, and resource costs.
@@ -47,6 +56,7 @@ Alternatively, `npm run dev` serves the game at [localhost:4173](http://localhos
 | Right mouse / R | Guard |
 | Mouse wheel | Cycle owned weapons |
 | 1–4 / Q | Cast a hotbar spell / cast the selected spell |
+| Z | Select the next spell without casting; preview area targeting |
 | B | Spellbook and hotbar bindings |
 | Tab | Equipment |
 | C | Character and progression |
@@ -87,7 +97,7 @@ python3 -m pip install -r requirements.txt
 python3 -m pytest -q
 ```
 
-The Node tests cover transaction invariants, profitable routes, cargo limits, exactly-once harvests and payouts, save migration and validation, door traversal, wall collision, river crossings, road reachability, character geometry, all spell actions, resource costs, progression, safe zones, and projectile collision ordering. Shader hooks and bundled module imports are checked as source. They construct geometry in Node; **they are not WebGL or interactive browser tests**.
+The Node tests cover transaction invariants, profitable routes, cargo limits, exactly-once harvests and payouts, save migration and validation, door traversal, wall collision, river crossings, road reachability, character geometry, all spell actions, resource costs, progression, safe zones, and projectile collision ordering. Additional tests cover elemental combinations, burn timing, practice targets, enemy windups, spell effect bounds and cleanup. Shader hooks and bundled module imports are checked as source. They construct geometry in Node; **they are not WebGL or interactive browser tests**.
 
 `npm run build` copies the self-contained game into `dist/`. GitHub Pages continues to serve `web/`; a merge to `main` uses the existing Pages workflow. `web/vendor/` contains pinned Three.js 0.180.0, its postprocessing modules, and the MIT license. The three original material textures in `web/assets/` were generated for this project; their prompts are recorded in `web/assets/texture-prompts.txt`.
 
@@ -100,6 +110,7 @@ The Node tests cover transaction invariants, profitable routes, cargo limits, ex
 | `web/realm/combat.js` | Enemy simulation, collision, damage and spell actions |
 | `web/realm/models.js` | Procedural characters, enemies and weapons |
 | `web/realm/graphics.js`, `materials.js`, `postprocessing.js` | Textures, sky, river, combat effects and rendering |
+| `web/realm/spell-effects.js`, `combat-feedback.js` | Bounded spell particles, impact geometry, targeting feedback and damage numbers |
 | `web/realm/rpg-ui.js` | Character selection, equipment, spellbook and combat HUD |
 | `web/realm/controls.js` | Desktop and touch movement / look input |
 | `web/realm/ui.js` | Merchant dialogue, satchel, journal, settings and maps |
@@ -108,6 +119,7 @@ The Node tests cover transaction invariants, profitable routes, cargo limits, ex
 | `engine.py`, `server.py` | Legacy Python economy and API |
 | `tests/realm.test.mjs` | 3D campaign logic and geometry checks |
 | `tests/rpg.test.mjs` | Character, equipment, combat, save migration and graphics-source checks |
+| `tests/arcane.test.mjs` | Elemental rules, training, windups, spell geometry and effect lifecycle checks |
 | `tests/test_*.py` | Legacy engine and API tests |
 
 An optional, feature-detected WebMCP interface exposes the current journey and opens the journal, map or satchel. Browsers without WebMCP support ignore it. Live WebMCP registration has not been verified in a supported browser context.
