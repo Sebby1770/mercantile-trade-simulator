@@ -1,5 +1,23 @@
 # Changelog
 
+## 6.0.0 — Legends of the Wild (2026-09-27)
+
+- Extend the valley to ±300 m with three new regions: the snowbound **Frostfang Highlands** and the northern outpost of **Frostwatch** (the Frosted Antler inn, Hearth & Hide, Halvard the trapper, Brenna the herbalist and a watchtower), the drowned **Mirefen Marsh** with bog pools, reeds and ruined stilt huts, and the ashen **Cinder Reach** with lava pools, glowing cracks and obsidian spires.
+- Add a walkable frozen tarn where the River Wren rises, a third bridge in the north, five new roads, and new herb, mushroom and berry spots.
+- Add eight waystones that attune when you approach them and offer fast travel between attuned stones for 12 coin and an hour of travel, unavailable during a legendary battle.
+- Add region weather (snow, drifting ash and embers, marsh motes), biome-tinted ground, biome fog and ambience, region discovery, and bog and lava ground that slows or burns you.
+- Add four legendary boss fights in their own arenas: **Hrimfang, Wyrm of the White Pass** (Frostfang Highlands), **Morwen, the Mire Witch** (Mirefen Marsh), **Pyrrhus, the Cinder Colossus** (Cinder Reach) and **Aurelian, the Hollow King** (the Old Stones), who stays sealed behind a rift until the other three have fallen.
+- Give each legend a boss bar, three phases with new attacks, summoned adds, and telegraphed cones, circles, rings, lines, icicle and meteor rain, lingering pools, volleys, charges, blinks and blade combinations. Unblockable attacks are marked in magenta-red. Legends reset if you leave the arena or fall.
+- Reward each legend once with a sigil, coin, experience, skill points, a permanent boost to health, mana and power, and a legendary weapon: **Frostfang**, the **Mirewood thornstaff**, the **Cinderheart maul** or the **Riftblade of the Hollow King**. Legendary weapons cannot be bought.
+- Overhaul melee: light attacks chain into a three-hit combo with a finisher, holding attack charges a heavy blow with a move for each weapon (rising cut, flurry, cleave, concussion, whirl, lunge, slam and a drawn piercing arrow), and legendary heavies launch frost or rift crescents.
+- Add parrying by raising your guard just before a parryable blow lands, reflection of parried bolts, a stamina-costed dodge on V or Ctrl with invulnerability frames, a perfect-dodge riposte, guard breaks when stamina runs out, backstabs, and poise with stagger for enemies and bosses.
+- Add four spells, for sixteen in total: the channelled **Sunlance**, **Earthshatter**, **Thunderstorm** and **Soul siphon**. Earn skill points to raise spells to rank 3, each rank 25% more potent, and unlock a mastery for every spell at rank 3.
+- Add the **Overload** combination (lightning on a burning foe, with an arcane splash) alongside Shatter and Conduction.
+- Add six enemy types (rime wolves, frost trolls, bog thralls, mire hexers, cinder imps and cinder brutes) with ranged attacks, inflicted chill, poison and burning, and elemental weaknesses and resistances, across ten new wilderness encounters. The Whispering stones encounter moves north so the stone circle can hold the Hollow King.
+- Add a charge meter, combo pips, enemy poise, weak and resist labels, parry, dodge and stagger feedback, boss banners, boss music and new combat sounds.
+- Migrate existing heroes and journeys: characters gain one skill point for each level already earned, and saves gain the Frostwatch market, the Eldermere waystone and an empty region record, keeping coins, inventory and quests.
+- Add `tests/legends.test.mjs` for migration, spell ranks, combos, heavy attacks, parry, dodge, poise, affinities, bosses, hazards, summons, channelling, the new spells and the larger world, and update the existing tests for the new counts. As before, these are Node logic and geometry checks rather than WebGL or interactive browser tests.
+
 ## 5.0.0 — Arcane Awakening (2026-09-11)
 
 - Give all twelve spells distinct casting, projectile, impact and persistent effects, with a bounded particle buffer and reduced particle counts in Low quality.

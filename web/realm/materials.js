@@ -12,3 +12,9 @@ vec4 ry=texture2D(map,vRealmPosition.xz*realmTileScale);
 vec4 rz=texture2D(map,vRealmPosition.xy*realmTileScale);
 diffuseColor*=rx*rb.x+ry*rb.y+rz*rb.z;
 #endif`);};m.customProgramCacheKey=()=> 'realm-triplanar-v1';return m;}
+// Terrain: the projected grass texture, blended per vertex toward snow, marsh and ash by a `biome` (frost, mire, ash) attribute.
+export function terrainMaterial(texture,scale=.28){const m=projectedMaterial(0xcad6aa,texture,scale),base=m.onBeforeCompile;m.onBeforeCompile=(shader,renderer)=>{if(typeof base==='function')base(shader,renderer);shader.vertexShader=shader.vertexShader.replace('#include <common>','#include <common>\nattribute vec3 biome;\nvarying vec3 vRealmBiome;').replace('#include <begin_vertex>','#include <begin_vertex>\nvRealmBiome=biome;');shader.fragmentShader=shader.fragmentShader.replace('#include <common>','#include <common>\nvarying vec3 vRealmBiome;').replace('#include <alphamap_fragment>',`vec3 rw=clamp(vRealmBiome,0.,1.);float rl=dot(diffuseColor.rgb,vec3(.299,.587,.114));
+diffuseColor.rgb=mix(diffuseColor.rgb,vec3(.78,.83,.9)*(.64+rl*.5),rw.x);
+diffuseColor.rgb*=mix(vec3(1.),vec3(.52,.55,.38),rw.y);
+diffuseColor.rgb=mix(diffuseColor.rgb,vec3(.16,.14,.13)*(.6+rl*1.4),rw.z);
+#include <alphamap_fragment>`);};m.customProgramCacheKey=()=>'realm-terrain-v1';return m;}
