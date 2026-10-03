@@ -56,6 +56,8 @@ export const BOSSES={
   ]}
 };
 export const BOSS_KEYS=Object.keys(BOSSES);
+// Where a fallen legend's echo can be called back: inside its arena, a safe stride from the centre.
+export const echoStone=key=>BOSSES[key]&&{x:BOSSES[key].x,z:BOSSES[key].z+BOSSES[key].arena*.55};
 export const bossRequirementsMet=(key,defeated=[])=>(BOSSES[key]?.requires||[]).every(k=>defeated.includes(k));
 // Forward is (sin yaw, cos yaw), matching enemy headings. pad is the player's body radius.
 export function inHazard(h,p,pad=.35){const dx=p.x-h.x,dz=p.z-h.z,d=Math.hypot(dx,dz);

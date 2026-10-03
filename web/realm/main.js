@@ -1,11 +1,11 @@
 import * as T from '../vendor/three.module.js';
 import {createWorld,TOWNS,WAYSTONES,REGIONS,heightAt,surfaceAt,blocksAt,moveWithCollision,biomeAt,terrainAt} from './world.js';
-import {SAVE_KEY,GOODS,OFFERS,QUESTS,WAYSTONE_IDS,REGION_IDS,freshState,parseSave,transact,harvest,questAction,upgrade,rest,nextDay,acceptContract,completeContract,checkGoal,log} from './economy.js';
+import {SAVE_KEY,GOODS,OFFERS,QUESTS,WAYSTONE_IDS,REGION_IDS,freshState,parseSave,transact,harvest,questAction,upgrade,rest,nextDay,acceptContract,completeContract,acceptBounty,completeBounty,brew,checkGoal,log} from './economy.js';
 import {createControls} from './controls.js';
 import {createAudio} from './audio.js';
 import {createUI} from './ui.js';
-import {stats,chooseArchetype,buyWeapon,equipWeapon,assignSpell,upgradeSpell,drinkPotion,buySupply,WEAPONS,DEALERS} from './rpg.js';
-import {BOSSES,BOSS_KEYS} from './bosses.js';
+import {stats,chooseArchetype,buyWeapon,equipWeapon,assignSpell,upgradeSpell,drinkPotion,drinkBrew,buySupply,WEAPONS,DEALERS} from './rpg.js';
+import {BOSSES,BOSS_KEYS,echoStone} from './bosses.js';
 import {createCombat,isSanctuary,TRAINING,DODGE} from './combat.js';
 import {loadWorldTextures,createAtmosphere,createCombatGraphics} from './graphics.js';
 import {createWeather} from './weather.js';
@@ -13,8 +13,8 @@ import {updateRPGHUD} from './rpg-ui.js';
 import {createPostProcessing} from './postprocessing.js';
 import {createCombatFeedback} from './combat-feedback.js';
 const $=s=>document.querySelector(s);
-let settings={sensitivity:1,sound:true,reducedMotion:matchMedia('(prefers-reduced-motion:reduce)').matches,invert:false,quality:matchMedia('(pointer:coarse)').matches?'low':'high'};
-try{const v=JSON.parse(localStorage.getItem('mercantile.elderwood.settings'));if(v){if(Number.isFinite(v.sensitivity))settings.sensitivity=Math.max(.3,Math.min(2,v.sensitivity));for(const k of ['sound','reducedMotion','invert'])if(typeof v[k]==='boolean')settings[k]=v[k];if(['high','low'].includes(v.quality))settings.quality=v.quality;}}catch{}
+let settings={sensitivity:1,sound:true,shake:true,reducedMotion:matchMedia('(prefers-reduced-motion:reduce)').matches,invert:false,quality:matchMedia('(pointer:coarse)').matches?'low':'high'};
+try{const v=JSON.parse(localStorage.getItem('mercantile.elderwood.settings'));if(v){if(Number.isFinite(v.sensitivity))settings.sensitivity=Math.max(.3,Math.min(2,v.sensitivity));for(const k of ['sound','shake','reducedMotion','invert'])if(typeof v[k]==='boolean')settings[k]=v[k];if(['high','low'].includes(v.quality))settings.quality=v.quality;}}catch{}
 let state=freshState(),hasSave=false,storageFailed=false,corruptSave=false;
 try{const raw=localStorage.getItem(SAVE_KEY);if(raw){const loaded=parseSave(raw);if(loaded){state=loaded;hasSave=true;}else corruptSave=true;}}catch{storageFailed=true;}
 const renderer=new T.WebGLRenderer({canvas:$('#world'),antialias:true,powerPreference:'high-performance'});
@@ -38,7 +38,7 @@ const sinks=[e=>combatGraphics.emit(e),e=>combatFeedback.emit(e),e=>audio.combat
 function emit(e){for(const f of sinks)try{f(e);}catch(error){console.error(error);}}
 const combat=createCombat({state:()=>state,world,stamina:controls,emit,notify:message=>ui?.toast(message),changed:()=>{checkGoal(state);save();},onDefeat:()=>{controls.clear();controls.yaw=0;controls.pitch=0;shake=hitStop=0;camera.position.set(0,stats(state.hero).eye,28);}});
 const near=(e,range=28)=>Number.isFinite(e.x)&&Number.isFinite(e.z)?Math.max(0,1-Math.hypot(e.x-state.position.x,e.z-state.position.z)/range):0;
-function kick(k){if(!settings.reducedMotion&&k>0)shake=Math.min(1,shake+k);}
+function kick(k){if(!settings.reducedMotion&&settings.shake!==false&&k>0)shake=Math.min(1,shake+k);}
 // Main's own reactions to combat: camera feel, hit-stop, and the moments worth saving and telling.
 function react(e){const t=e.type;
  if(t==='impact-melee'){kick(.08+.2*(e.strength||.45));if((e.strength||0)>=1)hitStop=.06;}
@@ -81,6 +81,9 @@ function action(type,{merchant,good,quantity,id}){
  if(type==='rest'&&merchant.role==='innkeeper'){result=rest(state);if(result.ok){controls.stamina=100;state.hero.health=stats(state.hero).health;state.hero.mana=stats(state.hero).mana;syncPlants();}}
  if(type==='accept')result=acceptContract(state,merchant.town);
  if(type==='complete')result=completeContract(state,id,merchant.town);
+ if(type==='brew'&&merchant.role==='herbalist')result=brew(state,id);
+ if(type==='bounty-accept'&&merchant.role==='innkeeper')result=acceptBounty(state,merchant.town);
+ if(type==='bounty-claim'&&merchant.role==='innkeeper'){result=completeBounty(state,id,merchant.town);if(result.levels)combatGraphics.emit({type:'level',x:state.position.x,y:surfaceAt(state.position.x,state.position.z),z:state.position.z,color:0xffd68b,level:state.hero.level});}
  if(result?.ok){audio.chime();save();}return result;
 }
 function title(){pause();started=false;$('#menu').hidden=false;$('#hud').hidden=true;save();$('#play').firstChild.textContent='Continue your journey ';$('#new-game').hidden=false;}
@@ -96,6 +99,7 @@ function rpgAction(type,{id,slot,merchant}={}){
  if(type==='rpg-bind')result=assignSpell(state,slot,id);
  if(type==='rpg-upgrade')result=upgradeSpell(state,id);
  if(type==='rpg-potion')result=drinkPotion(state);
+ if(type==='rpg-brew')result=drinkBrew(state,id);
  if(type==='rpg-buy'||type==='rpg-supply'){
   if(!merchant||!DEALERS.includes(merchant.id)||Math.hypot(state.position.x-merchant.x,state.position.z-merchant.z)>3.7||world.roomAt(state.position.x,state.position.z)!==merchant.room)return{ok:false,message:'Visit Rowan, Gareth or Halvard to purchase equipment.'};
   result=type==='rpg-buy'?buyWeapon(state,id):buySupply(state,id);
@@ -114,13 +118,15 @@ function findInteraction(){const p=state.position,fx=-Math.sin(controls.yaw),fz=
  for(const n of world.npcs)if(n.room===currentRoom)consider('npc',n,n.x,n.z,3.35,`Speak to ${n.name} · ${n.role}`);
  for(const h of world.houses)consider('door',h,h.x,h.z,2.8,`${h.open?'Close door':'Enter'} · ${h.name}`);
  if(!currentRoom){for(const n of world.gatherables)if(state.harvested[n.id]!==state.day)consider('gather',n,n.x,n.z,2.65,'Gather '+n.kind);for(const a of world.animals)consider('animal',a,a.group.position.x,a.group.position.z,3.3,'Observe '+a.kind);
-  for(const w of WAYSTONES)consider('waystone',w,w.x,w.z,3.3,(state.waystones.includes(w.id)?'Travel · ':'Attune · ')+w.name);}
+  for(const w of WAYSTONES)consider('waystone',w,w.x,w.z,3.3,(state.waystones.includes(w.id)?'Travel · ':'Attune · ')+w.name);
+  for(const k of BOSS_KEYS){const e=combat.bosses?.find(b=>b.boss===k);if(state.hero.bosses.includes(k)&&e?.dead&&state.hero.echoes?.[k]!==state.day){const p=echoStone(k);consider('echo',k,p.x,p.z,3.2,'Summon the echo of '+BOSSES[k].name+' · once a day');}}}
  return best;
 }
 function interact(){if(!started||paused)return;nearest=findInteraction();if(!nearest)return;let result;const {type,o}=nearest;
  if(type==='npc'){ui.open('trade',o);return;}
  if(type==='waystone'){attune(o);ui.open('travel');return;}
  if(type==='practice')result=combat.practice();
+ if(type==='echo')result=combat.summonEcho(o);
  if(type==='door'){if(world.toggleDoor(o,state.position)){result={ok:true,message:o.open?o.name+' · door opened':'Door closed'};if(o.open)log(state,'Opened the door to '+o.name+'.');}else result={ok:false,message:'Step clear of the doorway before closing the door.'};}
  if(type==='gather'){result=harvest(state,o);if(result.ok)syncPlants();}
  if(type==='animal'){const notes={deer:'Roe deer · shy woodland wanderers. Move gently or they’ll flee.',sheep:'Valley sheep · Mossbrook’s wool begins in these pastures.',rabbit:'Brown rabbit · a quick-footed resident of the forest floor.',chicken:'Village hen · always the first to hear a market rumour.'};if(!state.discovered.includes(o.kind)){state.discovered.push(o.kind);log(state,'Observed a '+o.kind+'.');}result={ok:true,message:notes[o.kind]};}
@@ -136,12 +142,14 @@ addEventListener('keydown',e=>{if(!started||e.repeat)return;if(e.code==='Escape'
  if(e.code==='KeyZ'){e.preventDefault();state.hero.selected=(state.hero.selected+1)%4;updateRPGHUD(state,combat);}
  if(e.code==='KeyQ'){e.preventDefault();qSlot=state.hero.selected;combat.cast(qSlot);}
  if(e.code==='KeyF'){e.preventDefault();usePotion();}
+ if(e.code==='KeyG'){e.preventDefault();useMana();}
  if(e.code==='KeyR'){e.preventDefault();combat.setBlocking(true);}
  const keyPanel={KeyI:'inventory',KeyJ:'journal',KeyM:'map',KeyB:'spellbook',KeyC:'hero',Tab:'armory'}[e.code];if(keyPanel){e.preventDefault();ui.open(keyPanel);}});
 addEventListener('keyup',e=>{if(e.code==='KeyR')combat.setBlocking(false);if(e.code==='Space'){if(started&&!paused)combat.releaseAttack();else combat.setHeld(false);}endChannel(/^Digit[1-4]$/.test(e.code)?Number(e.code.slice(-1))-1:e.code==='KeyQ'?qSlot:-1);});
 addEventListener('blur',()=>{combat.setHeld(false);combat.stopChannel();});
 function usePotion(){if(!started||paused)return;const r=drinkPotion(state);ui.toast(r.message);if(r.ok){combatGraphics.emit({type:'ring',x:state.position.x,y:surfaceAt(state.position.x,state.position.z)+.13,z:state.position.z,color:0x94e2aa,radius:2});save();}}
-$('#potion-button').onclick=usePotion;
+function useMana(){if(!started||paused)return;const r=drinkBrew(state,'mana');ui.toast(r.message);if(r.ok){combatGraphics.emit({type:'ring',x:state.position.x,y:surfaceAt(state.position.x,state.position.z)+.13,z:state.position.z,color:0x8fb4ff,radius:2});save();updateRPGHUD(state,combat);}}
+$('#potion-button').onclick=usePotion;$('#mana-button')?.addEventListener('click',useMana);
 $('#cycle-spell').onclick=()=>{if(started&&!paused){state.hero.selected=(state.hero.selected+1)%4;updateRPGHUD(state,combat);}};
 // Hotbar casts on press so channelled spells last exactly as long as the button is held; keyboard activation still casts.
 document.querySelectorAll('[data-cast]').forEach(b=>{const slot=Number(b.dataset.cast),stop=()=>endChannel(slot);
@@ -185,6 +193,7 @@ function frame(now){requestAnimationFrame(frame);let dt=Math.max(0,Math.min(.05,
   camera.position.set(state.position.x,T.MathUtils.damp(camera.position.y,surfaceAt(state.position.x,state.position.z)+stats(h).eye+bob,14,dt),state.position.z);camera.rotation.set(controls.pitch,controls.yaw,0,'YXZ');
   shake=Math.max(0,shake-dt*1.9);if(settings.reducedMotion)shake=0;if(shake>0){const s=shake*shake,t=elapsed*37;camera.rotation.x+=Math.sin(t*1.31)*.02*s;camera.rotation.y+=Math.sin(t*1.07+1.7)*.02*s;camera.rotation.z=Math.sin(t*.93+.6)*.026*s;}
   const fovTarget=settings.reducedMotion?BASE_FOV:BASE_FOV+(combat.dodging?6:0)+(e.haste>0?4:0)-(combat.charging?3:0),fov=settings.reducedMotion?BASE_FOV:T.MathUtils.damp(camera.fov,fovTarget,combat.dodging?16:6,dt);if(Math.abs(fov-camera.fov)>.005){camera.fov=fov;camera.updateProjectionMatrix();}
+  if(e.swiftfoot>0)controls.stamina=Math.min(100,controls.stamina+9.6*dt);
   const low=controls.stamina<(DODGE?.stamina??22);staminaBar.style.width=controls.stamina+'%';if(low!==staminaLow){staminaLow=low;staminaBar.classList.toggle('exhausted',low);staminaBar.style.background=low?'linear-gradient(90deg,#8f2f24,#d0563f)':'';}
   audio.update(elapsed,frameMoving,m.sprint,daylight);
  }else if(!started){const drift=settings.reducedMotion?0:Math.sin(elapsed*.055)*4;camera.position.set(34+drift,12.5,38);camera.lookAt(-3,3,-11);if(camera.fov!==BASE_FOV){camera.fov=BASE_FOV;camera.updateProjectionMatrix();}}

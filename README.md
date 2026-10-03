@@ -2,7 +2,7 @@
 
 A first-person **3D medieval fantasy adventure** through a continuous, living valley. Choose a Human, Elf, Wizard or Ogre, explore the roads between Eldermere, Mossbrook, Ironhold and the northern outpost of Frostwatch, trade in furnished houses, gather wild plants, face the creatures beyond the settlements, and challenge the four legends of the wild.
 
-**Version 6.0.0 — Legends of the Wild.** Inspired by the first-person interaction in `vibe-check-9000`, with an outdoor world, regional economies, a merchant campaign, and character progression.
+**Version 6.1.0 — Hunters & Alchemists.** Inspired by the first-person interaction in `vibe-check-9000`, with an outdoor world, regional economies, a merchant campaign, and character progression.
 
 ## Publish with Vercel
 
@@ -17,6 +17,13 @@ python3 -m http.server 8000 --directory web
 Open [localhost:8000](http://localhost:8000) and choose **Enter the valley**. The game requires WebGL 2 and a local HTTP server. Three.js is bundled in the repository; there are no CDN JavaScript dependencies or build requirements for playing. Optional Google Fonts fall back to system fonts when offline.
 
 Alternatively, `npm run dev` serves the game at [localhost:4173](http://localhost:4173).
+
+## Hunters & Alchemists
+
+- **Hunters' boards.** Every innkeeper posts a daily bounty against the creatures of the nearby wilds. Kills advance one open bounty at a time; claim the coin and experience at the inn that issued it. Up to three bounties can be open at once.
+- **Alchemy.** Elin in Eldermere and Brenna in Frostwatch brew satchel goods into a Mana draught (press **G**), an Ironbark tonic (25% less damage for 90 s) and a Swiftfoot tonic (faster stamina and cheaper dodges for 90 s). Drink tonics from the satchel.
+- **Legend echoes.** A fallen legend leaves an echo stone in its lair. Press **E** at the stone to call back a stronger echo once per day for part of the original reward.
+- **Bestiary.** The journal counts every creature and legend slain and reveals weaknesses after the first kill.
 
 ## Legends of the Wild
 
@@ -78,7 +85,7 @@ Alternatively, `npm run dev` serves the game at [localhost:4173](http://localhos
 | WASD / arrow keys | Walk |
 | Mouse | Look; hold and drag if mouse capture is unavailable |
 | Shift | Run |
-| E | Speak, trade, open/close a door, gather, or observe |
+| E | Speak, trade, open/close a door, gather, observe, travel by waystone, or call a legend's echo |
 | Left click / Space | Attack; repeated taps chain a three-hit combo |
 | Hold left click / Space | Charge and release a heavy attack (repeated attacks for weapons without one) |
 | Right mouse / R | Guard; raise it just before a blow lands to parry |
@@ -90,6 +97,7 @@ Alternatively, `npm run dev` serves the game at [localhost:4173](http://localhos
 | Tab | Equipment |
 | C | Character and progression |
 | F | Drink a healing draught |
+| G | Drink a mana draught |
 | I | Satchel |
 | J | Quest and delivery journal |
 | M | Valley map |
@@ -152,6 +160,7 @@ The Node tests cover transaction invariants, profitable routes, cargo limits, ex
 | `tests/rpg.test.mjs` | Character, equipment, combat, save migration and graphics-source checks |
 | `tests/arcane.test.mjs` | Elemental rules, training, windups, spell geometry and effect lifecycle checks |
 | `tests/legends.test.mjs` | Migration, spell ranks, melee, parry, dodge, poise, bosses, hazards, new spells and world checks |
+| `tests/guild.test.mjs` | Bounties, brewing, tonics, legend echoes, bestiary and 6.0 save migration |
 | `tests/test_*.py` | Legacy engine and API tests |
 
 An optional, feature-detected WebMCP interface exposes the current journey and opens the journal, map or satchel. Browsers without WebMCP support ignore it. Live WebMCP registration has not been verified in a supported browser context.

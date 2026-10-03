@@ -38,9 +38,11 @@ export function createCombatFeedback(camera){
   if(t==='heal'){if(e.amount>0)announce('RESTORED · +'+e.amount+' health','#a3e8bd',1);return;}
   if(t==='boss-cast'){const who=def?.name||e.bossName;if(e.name)announce(who?who+' · '+e.name:e.name,bossColor,2,1.6);return;}
   if(t==='boss-phase'){const line=e.line||def?.lines?.[(e.phase|0)-1];if(line)announce(line,bossColor,4,3.4);return;}
-  if(t==='boss-awaken'){showBanner('A LEGEND AWAKENS',e.name||def?.name,e.title||def?.title,false,4.2);return;}
+  if(t==='echo-summon'){if(def)announce('The echo of '+def.name+' gathers','#d9ccff',3,2.4);return;}
+  if(t==='boss-awaken'){showBanner(e.echo?'AN ECHO STIRS':'A LEGEND AWAKENS',e.name||def?.name,e.title||def?.title,false,4.2);return;}
+  if(t==='boss-defeat'&&e.echo){showBanner('ECHO DISPELLED',e.name||def?.name,'It will gather again tomorrow',true,4.6);notice=0;return;}
   if(t==='boss-defeat'){const sub=[e.weaponName?e.weaponName+' claimed':'',e.sigil||def?.sigil||''].filter(Boolean).join(' · ');showBanner('LEGEND FELLED',e.name||def?.name,sub,true,5.6);notice=0;return;}
-  if(t==='boss-reset'){if(def)announce(def.name+' withdraws to its lair','#c9c3b4',2,2.2);return;}
+  if(t==='boss-reset'){if(def)announce(e.echo?'The echo of '+def.name+' fades':def.name+' withdraws to its lair','#c9c3b4',2,2.2);return;}
   if(t==='rift-open'){announce('The rift at the Old Stones tears open','#d7c4ff',3,3);return;}
  }
  const point=new T.Vector3();

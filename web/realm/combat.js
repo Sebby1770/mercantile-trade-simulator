@@ -1,4 +1,4 @@
-import {WEAPONS,SPELLS,ENEMY_DEFS,stats,spendAttack,spendCast,tickHero,hurtHero,rewardKill,rewardBoss,recover,potency,spellRank} from './rpg.js';
+import {WEAPONS,SPELLS,ENEMY_DEFS,ECHO,stats,spendAttack,spendCast,tickHero,hurtHero,rewardKill,rewardBoss,rewardEcho,noteSlain,recover,potency,spellRank} from './rpg.js';
 import {BOSSES,inHazard,bossRequirementsMet} from './bosses.js';
 import {TOWNS,blocksAt,moveWithCollision,surfaceAt} from './world.js';
 // The first five camps keep their order so saved hostile-N ids stay stable.
@@ -39,7 +39,7 @@ export function createCombat({state,world,emit=()=>{},notify=()=>{},changed=()=>
  let clock=0,day=state().day,held=false,blocking=false,guardStart=-9,wispTimer=0,combo=-1,comboUntil=-1,queued=0,charge=null,riposte=0,motion=null,dodgeStart=-9,dodgeReady=0,evadeUntil=-9,channel=null,serial=0,downed=false,dotShown=0,dotAcc=0;
  const tire=n=>{if(!stamina)return true;if(!(stamina.stamina>=n))return false;stamina.stamina=Math.max(0,stamina.stamina-n);return true;};
  function foe(kind,id,x,z,extra={}){const d=ENEMY_DEFS[kind];return{id,kind,...d,maxHealth:d.health,maxPoise:d.poise||40,x,z,homeX:x,homeZ:z,heading:0,dead:false,freeze:0,iceLock:0,chill:0,burn:0,burnTick:0,burnDamage:0,poison:0,poisonTick:0,poisonDamage:0,bind:0,slow:0,stagger:0,poiseRest:0,windup:0,windupTotal:0,attackTime:1,flash:0,orbit:random()<.5?1:-1,wander:0,...extra};}
- function bossEntity(b){const h=state().hero,done=!!h.bosses?.includes(b.key);return{id:b.id,boss:b.key,kind:b.kind,name:b.name,title:b.title,health:b.health,maxHealth:b.health,poise:b.poise,maxPoise:b.poise,damage:0,speed:b.speed,size:b.size,affinity:b.affinity,hover:!!b.hover,x:b.x,z:b.z,homeX:b.x,homeZ:b.z,heading:0,dead:done,dormant:!done&&!bossRequirementsMet(b.key,h.bosses||[]),engaged:false,phase:0,attack:null,cooldown:1.5,ready:{},resetIn:0,freeze:0,iceLock:0,chill:0,burn:0,burnTick:0,burnDamage:0,poison:0,poisonTick:0,poisonDamage:0,bind:0,slow:0,stagger:0,poiseRest:0,windup:0,attackTime:0,flash:0};}
+ function bossEntity(b){const h=state().hero,done=!!h.bosses?.includes(b.key);return{id:b.id,boss:b.key,kind:b.kind,name:b.name,title:b.title,health:b.health,maxHealth:b.health,poise:b.poise,maxPoise:b.poise,damage:0,speed:b.speed,size:b.size,affinity:b.affinity,hover:!!b.hover,x:b.x,z:b.z,homeX:b.x,homeZ:b.z,heading:0,dead:done,echo:false,dormant:!done&&!bossRequirementsMet(b.key,h.bosses||[]),engaged:false,phase:0,attack:null,cooldown:1.5,ready:{},resetIn:0,freeze:0,iceLock:0,chill:0,burn:0,burnTick:0,burnDamage:0,poison:0,poisonTick:0,poisonDamage:0,bind:0,slow:0,stagger:0,poiseRest:0,windup:0,attackTime:0,flash:0};}
  function buildBosses(){bosses=Object.values(BOSSES).map(bossEntity);}
  function spawn(){
   enemies.length=0;let index=0;const s=state();
@@ -80,13 +80,15 @@ export function createCombat({state,world,emit=()=>{},notify=()=>{},changed=()=>
    e.dead=true;e.deadAt=clock;
    if(e.training){e.resetIn=2;emit({type:'training-down',...position,color:0xa8e7ff});return true;}
    if(e.boss){bossDown(e,position);return true;}
-   if(e.summon){emit({type:'defeat',...position,color:0xb7a6d8,radius:.9});return true;}
+   if(e.summon){noteSlain(state().hero,e.kind);emit({type:'defeat',...position,color:0xb7a6d8,radius:.9});return true;}
    const result=rewardKill(state(),e);
-   if(result.rewarded){notify(result.levels?'Level '+state().hero.level+' · health and mana restored · +'+result.levels+' skill point'+(result.levels>1?'s':''):e.name+' defeated · +'+e.coin+' coin · +'+e.xp+' XP');emit({type:'defeat',...position,color:0xfad58b,radius:1.3});if(result.levels)emit({type:'level',...point(state().position,0),color:0xffd68b,level:state().hero.level});changed();}
+   if(result.rewarded){const b=result.bounty,tally=b?' · bounty '+b.have+'/'+b.need+(b.have>=b.need?' · claim it at the board':''):'';notify((result.levels?'Level '+state().hero.level+' · health and mana restored · +'+result.levels+' skill point'+(result.levels>1?'s':''):e.name+' defeated · +'+e.coin+' coin · +'+e.xp+' XP')+tally);emit({type:'defeat',...position,color:0xfad58b,radius:1.3});if(result.levels)emit({type:'level',...point(state().position,0),color:0xffd68b,level:state().hero.level});changed();}
   }
   return true;
  }
- function bossDown(e,position){const s=state(),def=BOSSES[e.boss],result=rewardBoss(s,e.boss);e.engaged=false;e.attack=null;
+ function bossDown(e,position){const s=state(),def=BOSSES[e.boss];
+  if(e.echo){const r=rewardEcho(s,e.boss);e.echo=false;e.engaged=false;e.attack=null;for(const o of enemies)if(o.owner===e.id&&!o.dead){o.dead=true;o.deadAt=clock;}dropHazards(h=>h.owner===e.id||h.style===e.boss);for(let i=foeShots.length-1;i>=0;i--)if(foeShots[i].owner===e.id)foeShots.splice(i,1);emit({type:'boss-defeat',boss:e.boss,name:'Echo of '+def.name,title:def.title,color:def.color,weapon:null,weaponName:null,sigil:null,echo:true,...position});if(r.rewarded){notify('Echo of '+def.name+' dispelled · +'+r.coin+' coin');if(r.levels)emit({type:'level',...point(s.position,0),color:0xffd68b,level:s.hero.level});}changed();return;}
+  const result=rewardBoss(s,e.boss);e.engaged=false;e.attack=null;
   for(const o of enemies)if(o.owner===e.id&&!o.dead){o.dead=true;o.deadAt=clock;emit({type:'defeat',...point(o,1),color:0xb7a6d8,radius:.9});}
   dropHazards(h=>h.owner===e.id||h.style===e.boss);for(let i=foeShots.length-1;i>=0;i--)if(foeShots[i].owner===e.id)foeShots.splice(i,1);
   const weapon=result.weapon?WEAPONS[result.weapon].name:null;
@@ -137,7 +139,7 @@ export function createCombat({state,world,emit=()=>{},notify=()=>{},changed=()=>
  }
  function pressAttack(){const h=state().hero,w=WEAPONS[h.equipped];if(!w||h.health<=0)return{ok:false};if(w.heavy){charge={start:clock,weapon:h.equipped};return{ok:true,charging:true};}held=true;return attack();}
  function releaseAttack(){held=false;if(!charge)return{ok:false};const c=charge;charge=null;const h=state().hero;if(h.equipped!==c.weapon)return{ok:false};const t=clock-c.start;if(t>=CHARGE.min)return heavy(Math.min(1,(t-CHARGE.min)/(CHARGE.full-CHARGE.min)));const r=attack();if(!r.ok&&(h.cooldowns.attack||0)>0&&h.cooldowns.attack<.35)queued=clock+.35;return r;}
- function dodge(dir={}){const s=state(),h=s.hero;if(h.health<=0||motion||clock<dodgeReady)return{ok:false};if(!tire(DODGE.stamina)){notify('Too tired to dodge.');return{ok:false,message:'Too tired to dodge.'};}
+ function dodge(dir={}){const s=state(),h=s.hero;if(h.health<=0||motion||clock<dodgeReady)return{ok:false};if(!tire(DODGE.stamina*(h.effects.swiftfoot>0?.66:1))){notify('Too tired to dodge.');return{ok:false,message:'Too tired to dodge.'};}
   let dx=Number(dir?.x)||0,dz=Number(dir?.z)||0,n=Math.hypot(dx,dz);if(n<1e-3){dx=Math.sin(s.position.yaw);dz=Math.cos(s.position.yaw);n=1;}
   motion={dx:dx/n,dz:dz/n,left:DODGE.distance,speed:DODGE.distance/DODGE.time,dodge:true};dodgeStart=clock;evadeUntil=clock+DODGE.iframes;dodgeReady=clock+DODGE.time+DODGE.cooldown;charge=null;stopChannel();
   emit({type:'dodge',...point(s.position,.2),dx:motion.dx,dz:motion.dz});return{ok:true};}
@@ -246,31 +248,31 @@ export function createCombat({state,world,emit=()=>{},notify=()=>{},changed=()=>
  function inArena(def,q,margin=2){const off=distance(q,def),max=def.arena-margin;return off<=max?q:{x:def.x+(q.x-def.x)*max/off,z:def.z+(q.z-def.z)*max/off};}
  const ownedAdds=e=>enemies.filter(o=>o.owner===e.id&&!o.dead).length;
  function startAttack(e,atk,step=0){
-  const def=BOSSES[e.boss],p=state().position,spec=atk.shape==='sequence'?atk.steps[step]:atk,windup=spec.windup/(1+e.phase*.1);
+  const def=BOSSES[e.boss],p=state().position,spec=atk.shape==='sequence'?atk.steps[step]:atk,windup=spec.windup/(1+e.phase*.1)/(e.echo?ECHO.speed:1),might=e.echo?ECHO.damage:1;
   // Legends commit with a lunging turn of at most .9 rad, so flanking still pays.
   e.heading=turnToward(e.heading,Math.atan2(p.x-e.x,p.z-e.z),.9);
   e.attack={atk,step,spec,remaining:windup,total:windup};
   if(step===0)emit({type:'boss-cast',boss:e.boss,name:atk.name,attack:atk.id,color:def.color,...point(e,size(e).y*2)});
-  const base={damage:spec.damage||0,parry:!!spec.parry,unblockable:!!spec.unblockable,status:spec.status||null,push:spec.push||0,style:e.boss,color:def.color};
+  const base={damage:(spec.damage||0)*might,parry:!!spec.parry,unblockable:!!spec.unblockable,status:spec.status||null,push:spec.push||0,style:e.boss,color:def.color};
   if(['cone','circle','ring','line'].includes(spec.shape)){let q={x:e.x,z:e.z};if(spec.at==='player')q=inArena(def,p,0);else if(spec.at==='front')q={x:e.x+Math.sin(e.heading)*(spec.offset||3),z:e.z+Math.cos(e.heading)*(spec.offset||3)};addHazard({...base,shape:spec.shape,...q,yaw:spec.rear?e.heading+Math.PI:e.heading,radius:spec.radius,inner:spec.inner,angle:spec.angle,length:spec.length,width:spec.width,delay:windup,owner:e.id});}
   else if(spec.shape==='charge')addHazard({...base,shape:'line',x:e.x,z:e.z,yaw:e.heading,length:spec.length,width:spec.width,delay:windup,owner:e.id,charge:true});
   else if(spec.shape==='rain')for(let i=0;i<(spec.count||5);i++){let q={x:p.x,z:p.z};if(i){const a=random()*Math.PI*2,r=1.5+random()*(spec.spread||6);q={x:p.x+Math.cos(a)*r,z:p.z+Math.sin(a)*r};}addHazard({...base,shape:'circle',...inArena(def,q,1),radius:spec.radius,delay:windup+i*.2,owner:null});}
   else if(spec.shape==='pool')for(let i=0;i<(spec.count||1);i++)addHazard({...base,damage:0,shape:'pool',...(spec.at==='arena'?arenaPoint(def):inArena(def,p,1)),radius:spec.radius,delay:windup,duration:spec.duration,tick:spec.tick,owner:null});
  }
  function finishAttack(e){const a=e.attack,spec=a.spec,def=BOSSES[e.boss],p=state().position;
-  if(spec.shape==='volley'){const n=spec.countByPhase?.[e.phase]??spec.count??3;for(let i=0;i<n;i++)fireFoeShot(e,p,{angle:(i-(n-1)/2)*(spec.spread||.2),speed:spec.speed,damage:spec.damage,color:def.color,status:spec.status||null,parry:spec.parry!==false,element:spec.element,range:40});}
+  if(spec.shape==='volley'){const n=spec.countByPhase?.[e.phase]??spec.count??3;for(let i=0;i<n;i++)fireFoeShot(e,p,{angle:(i-(n-1)/2)*(spec.spread||.2),speed:spec.speed,damage:spec.damage*(e.echo?ECHO.damage:1),color:def.color,status:spec.status||null,parry:spec.parry!==false,element:spec.element,range:40});}
   else if(spec.shape==='summon'){const n=Math.max(0,Math.min(spec.count||2,4-ownedAdds(e)));for(let i=0;i<n;i++){const ang=e.heading+(i%2?1:-1)*(1.2+i*.3);let q={x:e.x+Math.sin(ang)*3.2,z:e.z+Math.cos(ang)*3.2};if(blocksAt(q.x,q.z,world.colliders,.4))q=arenaPoint(def);enemies.push(foe(spec.summon,'summon-'+serial++,q.x,q.z,{summon:true,owner:e.id,homeX:def.x,homeZ:def.z,leash:def.arena+10,attackTime:1.2}));emit({type:'summon',...point(q,.1),color:def.color});}}
   else if(spec.shape==='blink'){const from=point(e,1.5),q=arenaPoint(def,9);e.x=q.x;e.z=q.z;e.heading=Math.atan2(p.x-e.x,p.z-e.z);emit({type:'boss-blink',from,to:point(e,1.5),color:def.color});}
   if(a.atk.shape==='sequence'&&a.step+1<a.atk.steps.length){startAttack(e,a.atk,a.step+1);return;}
   e.attack=null;e.cooldown=(def.gap||1)*(1-.15*e.phase);}
  function resetBoss(e,announce){const def=BOSSES[e.boss];Object.assign(e,{health:e.maxHealth,poise:e.maxPoise,x:e.homeX,z:e.homeZ,phase:0,attack:null,engaged:false,resetIn:0,cooldown:1.5,ready:{},stagger:0,freeze:0,iceLock:0,chill:0,burn:0,burnTick:0,burnDamage:0,poison:0,poisonTick:0,poisonDamage:0,bind:0,slow:0,flash:0});
   for(const o of enemies)if(o.owner===e.id&&!o.dead){o.dead=true;o.deadAt=clock-10;}dropHazards(h=>h.owner===e.id||h.style===e.boss);for(let i=foeShots.length-1;i>=0;i--)if(foeShots[i].owner===e.id)foeShots.splice(i,1);
-  emit({type:'boss-reset',boss:e.boss,...point(e,.1),color:def.color});if(announce)notify(def.name+' withdraws, and its wounds close.');}
+  const echo=e.echo;if(echo){e.echo=false;e.dead=true;}emit({type:'boss-reset',boss:e.boss,echo,...point(e,.1),color:def.color});if(announce)notify(echo?'The echo of '+def.name+' fades.':def.name+' withdraws, and its wounds close.');}
  function updateBoss(e,dt,s,safe){const def=BOSSES[e.boss],p=s.position;
   if(e.dormant){if(!bossRequirementsMet(e.boss,s.hero.bosses||[]))return;e.dormant=false;emit({type:'rift-open',boss:e.boss,...point(def,2),color:def.color});notify('The Old Stones stir. A rift has opened: '+def.name+', '+def.title+', waits within.');}
   const fromHome=distance(p,def);
   if(!e.engaged){e.health=Math.min(e.maxHealth,e.health+e.maxHealth*.08*dt);const home={x:e.homeX,z:e.homeZ},d=distance(e,home);if(d>.5){const heading=Math.atan2(home.x-e.x,home.z-e.z),step=Math.min(d,e.speed*dt);moveWithCollision(e,Math.sin(heading)*step,Math.cos(heading)*step,world.colliders,.6);e.heading=turnToward(e.heading,heading,def.turn*dt);}
-   if(fromHome<def.arena&&!safe&&s.hero.health>0){e.engaged=true;e.resetIn=0;e.cooldown=1.2;e.heading=Math.atan2(p.x-e.x,p.z-e.z);emit({type:'boss-awaken',boss:e.boss,name:def.name,title:def.title,...point(e,.1),color:def.color,radius:def.arena});notify(def.name+', '+def.title+', awakens!');}
+   if(fromHome<def.arena&&!safe&&s.hero.health>0){e.engaged=true;e.resetIn=0;e.cooldown=1.2;e.heading=Math.atan2(p.x-e.x,p.z-e.z);emit({type:'boss-awaken',boss:e.boss,name:e.echo?'Echo of '+def.name:def.name,title:def.title,echo:!!e.echo,...point(e,.1),color:def.color,radius:def.arena});notify((e.echo?'The echo of '+def.name:def.name+', '+def.title)+', awakens!');}
    return;}
   if(fromHome>def.arena+16){e.resetIn+=dt;if(e.resetIn>4){resetBoss(e,true);return;}}else e.resetIn=0;
   while(e.phase<def.phases.length&&e.health/e.maxHealth<=def.phases[e.phase]){e.phase++;const line=def.lines?.[e.phase-1]||'';emit({type:'boss-phase',boss:e.boss,phase:e.phase,line,...point(e,size(e).y),color:def.color});if(line)notify(line);e.cooldown=Math.min(e.cooldown,.6);}
@@ -320,9 +322,13 @@ export function createCombat({state,world,emit=()=>{},notify=()=>{},changed=()=>
   separate(s.position);
   for(let i=enemies.length-1;i>=0;i--){const o=enemies[i];if(o.summon&&o.dead&&clock-(o.deadAt||0)>2)enemies.splice(i,1);}
  }
+ // A fallen legend's echo can be called back to its lair once per day for a stronger rematch.
+ function summonEcho(key){const s=state(),h=s.hero,def=BOSSES[key],e=bosses.find(b=>b.boss===key);if(!def||!e)return{ok:false,message:'No legend sleeps here.'};if(!h.bosses.includes(key))return{ok:false,message:def.name+' still lives.'};if(!e.dead)return{ok:false,message:'The echo already stirs.'};if(h.echoes?.[key]===s.day)return{ok:false,message:'The echo of '+def.name+' rests until tomorrow.'};
+  const health=Math.round(def.health*ECHO.health),poise=Math.round(def.poise*1.2);Object.assign(e,{dead:false,echo:true,dormant:false,health,maxHealth:health,poise,maxPoise:poise,x:def.x,z:def.z,heading:0,phase:0,attack:null,engaged:false,cooldown:1.5,ready:{},resetIn:0,stagger:0,freeze:0,iceLock:0,chill:0,burn:0,burnTick:0,burnDamage:0,poison:0,poisonTick:0,poisonDamage:0,bind:0,slow:0,flash:0});
+  emit({type:'echo-summon',boss:key,...point(def,.1),color:def.color});return{ok:true,message:'The echo of '+def.name+' gathers. Stand fast.'};}
  function practice(){const s=state();if(distance(s.position,TRAINING.focus)>3.2)return{ok:false,message:'Approach the blue focus stone in Eldermere.'};s.hero.mana=stats(s.hero).mana;for(const key of Object.keys(SPELLS))s.hero.cooldowns[key]=0;emit({type:'focus',...point(TRAINING.focus,.5),color:0xa9dfff,radius:2});changed();return{ok:true,message:'Focus restored · full mana and spells ready. Training targets grant no rewards.'};}
  buildBosses();spawn();
- return{enemies,projectiles,zones,foeShots,hazards,attack,heavy,pressAttack,releaseAttack,dodge,cast,stopChannel,update,clear,practice,
+ return{enemies,projectiles,zones,foeShots,hazards,attack,heavy,pressAttack,releaseAttack,dodge,cast,stopChannel,update,clear,practice,summonEcho,
   reset(){clear();day=state().day;buildBosses();spawn();},
   setHeld(value){held=!!value;if(!value)charge=null;},setBlocking(value){if(value&&!blocking)guardStart=clock;blocking=!!value;},
   get blocking(){return blocking;},get player(){return state().position;},target(){return facingTarget(30,.96);},

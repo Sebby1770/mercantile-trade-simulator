@@ -1,5 +1,15 @@
 # Changelog
 
+## 6.1.0 — Hunters & Alchemists (2026-10-01)
+
+- Add a hunters' board at every inn. Each day the innkeeper posts a bounty to slay creatures of the nearby wilds (wolves and goblins around Eldermere, bog thralls and hexers near Mossbrook, skeletons, imps and cinder brutes for Ironhold, rime wolves, wraiths and the frost troll for Frostwatch). Kills count toward one open bounty at a time; claim coin and experience back at the issuing inn. Up to three bounties can be open.
+- Add alchemy. Elin and Brenna brew gathered or traded goods into a **Mana draught** (herbs and berries; restores 60 mana, press G), an **Ironbark tonic** (mushrooms and herbs; 25% less damage for 90 seconds) and a **Swiftfoot tonic** (berries and mushrooms; faster stamina and cheaper dodges for 90 seconds). Brews are drunk from the satchel.
+- Add **legend echoes**. Each fallen legend leaves an echo stone in its lair; once a day you can call back a stronger echo (35% more health, 25% harder blows, quicker wind-ups) for 40% of the legend's purse and 35% of its experience. A failed echo fades and can be called again.
+- Add a **bestiary** to the journal that counts every creature and legend you have slain and reveals their weaknesses and resistances after the first kill.
+- Telegraphed cone attacks now draw the small circle around the legend that their blow also covers, and boss telegraphs read more clearly on snow.
+- Add a separate screen-shake setting, a mana draught button on the combat dock, and fix the touch Interact button overlapping the minimap on phones.
+- Existing 6.0 saves gain an empty brew pouch, bestiary, echo record and bounty ledger; new fields are strictly validated.
+
 ## 6.0.0 — Legends of the Wild (2026-09-27)
 
 - Extend the valley to ±300 m with three new regions: the snowbound **Frostfang Highlands** and the northern outpost of **Frostwatch** (the Frosted Antler inn, Hearth & Hide, Halvard the trapper, Brenna the herbalist and a watchtower), the drowned **Mirefen Marsh** with bog pools, reeds and ruined stilt huts, and the ashen **Cinder Reach** with lava pools, glowing cracks and obsidian spires.

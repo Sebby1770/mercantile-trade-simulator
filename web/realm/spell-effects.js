@@ -28,7 +28,7 @@ gl_FragColor=vec4(mix(color,glow,b*.75+r*.55)*(1.+hot*(b+r)),(.78*smoothstep(0.,
 function groundGeometry(h,y0,lift=.07,soft=false){
  const s=h.shape,R=Math.max(.05,num(h.radius)),yaw=num(h.yaw),c=Math.cos(yaw),sn=Math.sin(yaw),pos=[],col=[],idx=[];let cols,rows,at;
  if(s==='line'){const L=Math.max(.05,num(h.length)),W=Math.max(.05,num(h.width));cols=clamp(Math.ceil(W/1.2),2,8);rows=clamp(Math.ceil(L/1.2),1,48);at=(i,j)=>[-W/2+W*i/cols,L*j/rows,Math.min(1,Math.min(i,cols-i)/cols*2)];}
- else{const I=s==='ring'?clamp(num(h.inner),0,R):0,A=s==='cone'?clamp(num(h.angle,.5),.05,Math.PI):Math.PI;cols=clamp(Math.ceil(2*A*R/1.3),12,72);rows=clamp(Math.ceil((R-I)/1.2),1,24);at=(i,j)=>{const t=-A+2*A*i/cols,r=I+(R-I)*j/rows;return[Math.sin(t)*r,Math.cos(t)*r,1-j/rows];};}
+ else{const I=s==='ring'?clamp(num(h.inner),0,R):0,A=Math.PI;cols=clamp(Math.ceil(2*A*R/1.3),12,72);rows=clamp(Math.ceil((R-I)/1.2),1,24);at=(i,j)=>{const t=-A+2*A*i/cols,r=I+(R-I)*j/rows;return[Math.sin(t)*r,Math.cos(t)*r,1-j/rows];};}
  for(let j=0;j<=rows;j++)for(let i=0;i<=cols;i++){const [lx,lz,k]=at(i,j),y=surfaceAt(h.x+lx*c+lz*sn,h.z-lx*sn+lz*c);pos.push(lx,(Number.isFinite(y)?y-y0:0)+lift,lz);if(soft){const f=Math.min(1,k*2.2);col.push(f,f,f);}}
  for(let j=0;j<rows;j++)for(let i=0;i<cols;i++){const a=j*(cols+1)+i,b=a+1,d=a+cols+1;idx.push(a,d,b,b,d,d+1);}
  const g=new T.BufferGeometry();g.setAttribute('position',new T.Float32BufferAttribute(pos,3));if(soft)g.setAttribute('color',new T.Float32BufferAttribute(col,3));g.setIndex(idx);g.computeBoundingSphere();return g;
@@ -195,6 +195,7 @@ export function createSpellEffects(scene,settings={}){
   if(e.type==='siphon'){siphon(e);return;}
   if(e.type==='embers'){embers(e);return;}
   if(e.type==='summon'){summon(e);return;}
+  if(e.type==='echo-summon'){rune({x:e.x,y:e.y,z:e.z},6,e.color??0xc6a4ff,2.4,{rise:.2});burst({x:e.x,y:e.y+1.5,z:e.z},e.color??0xc6a4ff,90,5);summon(e);return;}
   if(e.type==='boss-cast'){const col=e.color??BOSSES[e.boss]?.color??0xffffff;rune(ground(e.x,e.z,.12),(BOSSES[e.boss]?.size?.r??1.2)*1.5,col,.7);burst(P(e),col,18,1.6,styleBurst(e.boss));return;}
   if(e.type==='boss-awaken'){const col=e.color??0xffffff,p=P(e,.1);rune(ground(e.x,e.z,.12),clamp(num(e.radius,20),4,40),col,3.6);column(ground(e.x,e.z,0),2.2,36,col,2.2);shockwave(p,14,col,1.2);burst({...p,y:p.y+2},col,140,9,styleBurst(e.boss)==='spark'?'ember':styleBurst(e.boss));return;}
   if(e.type==='boss-phase'){const col=e.color??BOSSES[e.boss]?.color??0xffffff,p=P(e,.3);shockwave(p,16,col,1.1);ripple(ground(e.x,e.z),18,col,1);rune(ground(e.x,e.z,.12),6,col,1.4);burst(p,col,110,8,styleBurst(e.boss));return;}
